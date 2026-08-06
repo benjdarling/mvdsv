@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifndef CLIENTONLY
 #include "qwsvdef.h"
+#include "evobot_qw_adapter.h"
 
 #ifdef SERVERONLY
 
@@ -238,6 +239,8 @@ void SV_Shutdown (char *finalmsg)
 
 	if (!sv.state)
 		return; // already shutdown. FIXME: what about error during SV_SpawnServer() ?
+
+	EvoBot_QW_Shutdown();
 
 	SV_FinalMessage(finalmsg);
 
@@ -3332,8 +3335,12 @@ void SV_Frame (double time1)
 	SV_ReadPackets ();
 
 	// move autonomous things around if enough time has passed
-	if (!sv.paused) {
+	if (!sv.paused)
 		SV_Physics();
+
+	EvoBot_QW_Frame();
+
+	if (!sv.paused) {
 #ifdef USE_PR2
 		SV_RunBots();
 #endif
@@ -4055,6 +4062,7 @@ void SV_Init (void)
 
 	SV_MVDInit ();
 	Login_Init ();
+	EvoBot_QW_Init ();
 #ifndef SERVERONLY
 	server_cfg_done = true;
 #endif

@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifndef CLIENTONLY
 #include "qwsvdef.h"
+#include "evobot_qw_adapter.h"
 
 #ifndef SERVERONLY
 void CL_ClearState(void);
@@ -261,6 +262,7 @@ void SV_SpawnServer(char *mapname, qbool devmap, char* entityfile, qbool loading
 	snprintf (oldmap, MAP_NAME_LEN, "%s", sv.mapname);
 
 	Con_DPrintf ("SpawnServer: %s\n",mapname);
+	EvoBot_QW_MapCleared();
 
 #ifndef SERVERONLY
 	// As client+server we do it here.
@@ -657,6 +659,7 @@ void SV_SpawnServer(char *mapname, qbool devmap, char* entityfile, qbool loading
 	sv.signon_buffer_size[sv.num_signon_buffers-1] = sv.signon.cursize;
 
 	Info_SetValueForKey (svs.info, "map", sv.mapname, MAX_SERVERINFO_STRING);
+	EvoBot_QW_MapLoaded();
 
 	// calltimeofday.
 	{
