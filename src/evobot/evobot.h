@@ -6,6 +6,7 @@
 #include "evobot_host.h"
 
 #define EVOBOT_MAP_NAME_MAX 64
+#define EVOBOT_CLIENT_NAME_MAX 32
 
 typedef struct evobot_map_info_s
 {
@@ -19,6 +20,8 @@ void EvoBot_Frame(double server_time);
 void EvoBot_MapCleared(void);
 void EvoBot_Shutdown(void);
 
+void EvoBot_AddBot(const char *name);
+void EvoBot_RemoveBot(const char *name);
 void EvoBot_PrintStatus(void);
 void EvoBot_PrintVersion(void);
 

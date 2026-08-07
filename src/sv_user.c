@@ -3815,7 +3815,7 @@ FIXME
 #ifdef USE_PR2
 	// This is a temporary hack for Frogbots, who adjust after bumping into things
 	// Better would be to provide a way to simulate a move command, but at least this doesn't require API change
-	if (blocked && !second_attempt && sv_client->isBot && sv_player->v->blocked)
+	if (blocked && !second_attempt && sv_client->isBot && sv_client->gamecodeBot && sv_player->v->blocked)
 	{
 		pr_global_struct->self = EDICT_TO_PROG(sv_player);
 

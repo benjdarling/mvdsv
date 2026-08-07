@@ -220,6 +220,7 @@ typedef struct client_s
 	edict_t			*edict;				// EDICT_NUM(clientnum+1)
 #ifdef USE_PR2
 	int				isBot;
+	int				gamecodeBot;
 	usercmd_t		botcmd;				// bot movment
 #endif
 	char			name[CLIENT_NAME_LEN];		// for printing to other people
@@ -874,6 +875,8 @@ void SV_Impact (edict_t *e1, edict_t *e2);
 void SV_SetMoveVars(void);
 #ifdef USE_PR2
 void SV_RunBots(void);
+int SV_AddBotClient(const char *name, int bottomcolor, int topcolor, const char *skin, qbool gamecode_bot);
+void RemoveBot(client_t *cl);
 #endif
 
 //

@@ -2141,7 +2141,7 @@ intptr_t PF2_Map_Extension(char *name, int mapto)
 }
 /////////Bot Functions
 extern cvar_t maxclients, maxspectators;
-int PF2_Add_Bot(char *name, int bottomcolor, int topcolor, char *skin)
+int SV_AddBotClient(const char *name, int bottomcolor, int topcolor, const char *skin, qbool gamecode_bot)
 {
 	client_t *cl, *newcl = NULL;
 	int     edictnum;
@@ -2214,6 +2214,7 @@ int PF2_Add_Bot(char *name, int bottomcolor, int topcolor, char *skin)
 	newcl->datagram.maxsize = sizeof( newcl->datagram_buf );
 	newcl->spectator = 0;
 	newcl->isBot = 1;
+	newcl->gamecodeBot = gamecode_bot;
 	SV_SetClientConnectionTime(newcl);
 	strlcpy(newcl->name, name, sizeof(newcl->name));
 
@@ -2221,7 +2222,7 @@ int PF2_Add_Bot(char *name, int bottomcolor, int topcolor, char *skin)
 	val = PR2_GetEdictFieldValue( ent, "gravity" ); // FIXME: do it similar to maxspeed
 	if ( val )
 		val->_float = 1.0;
-	sv_client->maxspeed = sv_maxspeed.value;
+	newcl->maxspeed = sv_maxspeed.value;
 
 	if (fofs_maxspeed)
 		EdictFieldFloat(ent, fofs_maxspeed) = sv_maxspeed.value;
@@ -2230,7 +2231,7 @@ int PF2_Add_Bot(char *name, int bottomcolor, int topcolor, char *skin)
 	ent->v->colormap = edictnum;
 	val = PR2_GetEdictFieldValue(ent, "isBot"); // FIXME: do it similar to maxspeed
 	if( val )
-		val->_int = 1;
+		val->_int = gamecode_bot;
 
 	// restore client name.
 	PR_SetEntityString(ent, ent->v->netname, newcl->name);
@@ -2271,6 +2272,11 @@ int PF2_Add_Bot(char *name, int bottomcolor, int topcolor, char *skin)
 	return edictnum;
 }
 
+int PF2_Add_Bot(char *name, int bottomcolor, int topcolor, char *skin)
+{
+	return SV_AddBotClient(name, bottomcolor, topcolor, skin, true);
+}
+
 void RemoveBot(client_t *cl)
 {
 
@@ -2291,6 +2297,7 @@ void RemoveBot(client_t *cl)
 
 	SV_FullClientUpdate( cl, &sv.reliable_datagram );
 	cl->isBot = 0;
+	cl->gamecodeBot = 0;
 }
 
 void PF2_Remove_Bot(int entnum)

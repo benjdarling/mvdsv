@@ -287,6 +287,7 @@ void SV_SpawnServer(char *mapname, qbool devmap, char* entityfile, qbool loading
 			Info_RemoveAll(&svs.clients[i]._userinfoshort_ctx_);
 			SV_FullClientUpdate(&svs.clients[i], &sv.reliable_datagram);
 			svs.clients[i].isBot = 0;
+			svs.clients[i].gamecodeBot = 0;
 		}
 	}
 #endif
