@@ -38,7 +38,7 @@ static vec3_t   groundnormal;
 vec3_t	player_mins = {-16, -16, -24};
 vec3_t	player_maxs = {16, 16, 32};
 
-#define STEPSIZE        18
+#define STEPSIZE        PM_STEP_SIZE
 
 #define pm_flyfriction	4
 

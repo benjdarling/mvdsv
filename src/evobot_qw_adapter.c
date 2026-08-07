@@ -106,6 +106,108 @@ static evobot_contents_t EvoBot_QW_PointContents(const evobot_vec3_t *point)
 	}
 }
 
+static evobot_contents_t EvoBot_QW_MoveContents(int contents)
+{
+	switch (contents)
+	{
+	case CONTENTS_EMPTY:
+		return EVOBOT_CONTENTS_AIR;
+	case CONTENTS_SOLID:
+		return EVOBOT_CONTENTS_SOLID;
+	case CONTENTS_WATER:
+		return EVOBOT_CONTENTS_WATER;
+	case CONTENTS_SLIME:
+		return EVOBOT_CONTENTS_SLIME;
+	case CONTENTS_LAVA:
+		return EVOBOT_CONTENTS_LAVA;
+	default:
+		return EVOBOT_CONTENTS_OTHER;
+	}
+}
+
+static void EvoBot_QW_SetMoveVars(void)
+{
+	extern cvar_t pm_airstep;
+	extern cvar_t pm_bunnyspeedcap;
+	extern cvar_t pm_ktjump;
+	extern cvar_t pm_pground;
+	extern cvar_t pm_rampjump;
+	extern cvar_t pm_slidefix;
+
+	SV_SetMoveVars();
+	movevars.bunnyspeedcap = pm_bunnyspeedcap.value;
+	movevars.ktjump = pm_ktjump.value;
+	movevars.slidefix = pm_slidefix.value != 0;
+	movevars.airstep = pm_airstep.value != 0;
+	movevars.pground = pm_pground.value != 0;
+	movevars.rampjump = (int)pm_rampjump.value;
+}
+
+static int EvoBot_QW_PlayerPhysics(evobot_player_physics_t *physics)
+{
+	if (!physics || sv.state != ss_active || !sv.worldmodel)
+		return 0;
+	EvoBot_QW_SetMoveVars();
+	physics->step_height = PM_STEP_SIZE;
+	physics->minimum_ground_normal = MIN_STEP_NORMAL;
+	physics->gravity = movevars.gravity;
+	physics->maximum_speed = movevars.maxspeed;
+	return 1;
+}
+
+static int EvoBot_QW_SimulatePlayerMove(
+	const evobot_player_move_state_t *state,
+	const evobot_player_move_command_t *command,
+	evobot_player_move_result_t *result)
+{
+	playermove_t saved_pmove;
+	movevars_t saved_movevars;
+	int blocked;
+
+	if (!state || !command || !result || sv.state != ss_active || !sv.worldmodel ||
+		command->msec > 255)
+		return 0;
+	saved_pmove = pmove;
+	saved_movevars = movevars;
+	memset(&pmove, 0, sizeof(pmove));
+	VectorSet(pmove.origin, state->origin.v[0], state->origin.v[1], state->origin.v[2]);
+	VectorSet(pmove.velocity, state->velocity.v[0], state->velocity.v[1],
+		state->velocity.v[2]);
+	VectorSet(pmove.angles, state->angles.v[0], state->angles.v[1],
+		state->angles.v[2]);
+	pmove.waterjumptime = state->water_jump_time;
+	pmove.onground = state->on_ground;
+	pmove.waterlevel = state->water_level;
+	pmove.jump_held = state->jump_held;
+	pmove.jump_msec = state->jump_msec;
+	pmove.pm_type = PM_NORMAL;
+	pmove.numphysent = 1;
+	pmove.physents[0].model = sv.worldmodel;
+	pmove.cmd.msec = (byte)command->msec;
+	pmove.cmd.forwardmove = command->forward_move;
+	pmove.cmd.sidemove = command->side_move;
+	pmove.cmd.upmove = command->up_move;
+	pmove.cmd.buttons = (byte)command->buttons;
+	pmove.cmd.impulse = (byte)command->impulse;
+	VectorCopy(pmove.angles, pmove.cmd.angles);
+	EvoBot_QW_SetMoveVars();
+	blocked = PM_PlayerMove();
+	memset(result, 0, sizeof(*result));
+	EvoBot_QW_CopyVector(pmove.origin, &result->state.origin);
+	EvoBot_QW_CopyVector(pmove.velocity, &result->state.velocity);
+	EvoBot_QW_CopyVector(pmove.angles, &result->state.angles);
+	result->state.water_jump_time = pmove.waterjumptime;
+	result->state.on_ground = pmove.onground;
+	result->state.water_level = pmove.waterlevel;
+	result->state.jump_held = pmove.jump_held;
+	result->state.jump_msec = pmove.jump_msec;
+	result->contents = EvoBot_QW_MoveContents(pmove.watertype);
+	result->blocked = blocked;
+	pmove = saved_pmove;
+	movevars = saved_movevars;
+	return 1;
+}
+
 static int EvoBot_QW_CollisionLeaf(int contents)
 {
 	switch (contents)
@@ -536,6 +638,16 @@ static void EvoBot_QW_NavStatus_f(void)
 	EvoBot_NavConvexPrintStatus();
 }
 
+static void EvoBot_QW_NavReachStatus_f(void)
+{
+	EvoBot_NavReachPrintStatus();
+}
+
+static void EvoBot_QW_NavReachValidate_f(void)
+{
+	EvoBot_NavReachValidate();
+}
+
 static void EvoBot_QW_NavSave_f(void)
 {
 	EvoBot_NavConvexSave();
@@ -576,6 +688,8 @@ void EvoBot_QW_Init(void)
 	evobot_qw_host.player_bounds = EvoBot_QW_PlayerBounds;
 	evobot_qw_host.trace_player_world = EvoBot_QW_TracePlayerWorld;
 	evobot_qw_host.point_contents = EvoBot_QW_PointContents;
+	evobot_qw_host.player_physics = EvoBot_QW_PlayerPhysics;
+	evobot_qw_host.simulate_player_move = EvoBot_QW_SimulatePlayerMove;
 	evobot_qw_host.collision_tree = EvoBot_QW_CollisionTree;
 	evobot_qw_host.collision_node = EvoBot_QW_CollisionNode;
 	evobot_qw_host.interactor_count = EvoBot_QW_InteractorCount;
@@ -591,6 +705,8 @@ void EvoBot_QW_Init(void)
 	Cmd_AddCommand("evobot_remove", EvoBot_QW_Remove_f);
 	Cmd_AddCommand("evobot_nav_generate", EvoBot_QW_NavGenerate_f);
 	Cmd_AddCommand("evobot_nav_status", EvoBot_QW_NavStatus_f);
+	Cmd_AddCommand("evobot_nav_reach_status", EvoBot_QW_NavReachStatus_f);
+	Cmd_AddCommand("evobot_nav_reach_validate", EvoBot_QW_NavReachValidate_f);
 	Cmd_AddCommand("evobot_nav_save", EvoBot_QW_NavSave_f);
 	Cmd_AddCommand("evobot_nav_load", EvoBot_QW_NavLoad_f);
 	Cmd_AddCommand("evobot_nav_clear", EvoBot_QW_NavClear_f);
