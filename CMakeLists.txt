@@ -39,6 +39,8 @@ set(SRC_COMMON
 	"${DIR_SRC}/crc.c"
 	"${DIR_SRC}/cvar.c"
 	"${DIR_SRC}/evobot/evobot.c"
+	"${DIR_SRC}/evobot/evobot_nav.c"
+	"${DIR_SRC}/evobot/evobot_nav_convex.c"
 	"${DIR_SRC}/evobot_qw_adapter.c"
 	"${DIR_SRC}/fs.c"
 	"${DIR_SRC}/hash.c"

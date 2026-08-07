@@ -78,6 +78,7 @@ void EvoBot_Init(const evobot_host_api_t *host)
 	if (host)
 		evobot_host = *host;
 
+	EvoBot_NavConvexInit(&evobot_host);
 	evobot_initialized = 1;
 }
 
@@ -93,6 +94,7 @@ void EvoBot_MapLoaded(const evobot_map_info_t *map)
 
 	evobot_map_checksum = map->checksum;
 	evobot_map_loaded = 1;
+	EvoBot_NavConvexMapLoaded(evobot_map_name, evobot_map_checksum);
 }
 
 void EvoBot_Frame(double server_time)
@@ -104,6 +106,8 @@ void EvoBot_Frame(double server_time)
 void EvoBot_MapCleared(void)
 {
 	int i;
+
+	EvoBot_NavConvexMapCleared();
 
 	for (i = 0; i < EVOBOT_MAX_BOTS; i++)
 	{
@@ -123,6 +127,7 @@ void EvoBot_Shutdown(void)
 		return;
 
 	EvoBot_MapCleared();
+	EvoBot_NavConvexShutdown();
 	memset(&evobot_host, 0, sizeof(evobot_host));
 	evobot_initialized = 0;
 }

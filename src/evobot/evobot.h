@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "evobot_host.h"
+#include "evobot_nav_convex.h"
 
 #define EVOBOT_MAP_NAME_MAX 64
 #define EVOBOT_CLIENT_NAME_MAX 32
