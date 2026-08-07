@@ -85,12 +85,6 @@ static evobot_create_bot_result_t EvoBot_QW_CreateBotClient(const char *name)
 		return result;
 
 #ifdef USE_PR2
-	if (!sv_vm)
-	{
-		result.status = EVOBOT_CREATE_BOT_UNSUPPORTED_GAMECODE;
-		return result;
-	}
-
 	edictnum = SV_AddBotClient(name, 0, 0, "base", false);
 	if (!edictnum)
 	{

@@ -2151,6 +2151,8 @@ int SV_AddBotClient(const char *name, int bottomcolor, int topcolor, const char 
 	edict_t *ent;
 	eval_t *val;
 	int old_self;
+	client_t *old_client = NULL;
+	edict_t *old_player = NULL;
 	char info[MAX_EXT_INFO_STRING];
 
 	// count up the clients and spectators
@@ -2258,16 +2260,40 @@ int SV_AddBotClient(const char *name, int bottomcolor, int topcolor, const char 
 	// }
 
 	newcl->disable_updates_stop = -1.0;	// Vladis
+	if (!sv_vm)
+	{
+		PR_GameSetNewParms();
+		for (i = 0; i < NUM_SPAWN_PARMS; i++)
+			newcl->spawn_parms[i] = (&PR_GLOBAL(parm1))[i];
+	}
 
 	SV_FullClientUpdate( newcl, &sv.reliable_datagram );
 
 	old_self = pr_global_struct->self;
+	if (!sv_vm)
+	{
+		old_client = sv_client;
+		old_player = sv_player;
+		sv_client = newcl;
+		sv_player = newcl->edict;
+		for (i = 0; i < NUM_SPAWN_PARMS; i++)
+			(&PR_GLOBAL(parm1))[i] = newcl->spawn_parms[i];
+	}
 	pr_global_struct->time = sv.time;
 	pr_global_struct->self = EDICT_TO_PROG(newcl->edict);
+	if (!sv_vm)
+		G_FLOAT(OFS_PARM0) = (float)newcl->vip;
 
 	PR2_GameClientConnect(0);
+	pr_global_struct->time = sv.time;
+	pr_global_struct->self = EDICT_TO_PROG(newcl->edict);
 	PR2_GamePutClientInServer(0);
 
+	if (!sv_vm)
+	{
+		sv_client = old_client;
+		sv_player = old_player;
+	}
 	pr_global_struct->self = old_self;
 	return edictnum;
 }
@@ -2284,8 +2310,7 @@ void RemoveBot(client_t *cl)
 		return;
 
 	pr_global_struct->self = EDICT_TO_PROG(cl->edict);
-	if ( sv_vm )
-		PR2_GameClientDisconnect(0);
+	PR2_GameClientDisconnect(0);
 
 	cl->old_frags = 0;
 	cl->edict->v->frags = 0.0;
