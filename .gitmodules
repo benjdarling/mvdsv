@@ -1,3 +1,6 @@
 [submodule "src/qwprot"]
 	path = src/qwprot
 	url = https://github.com/QW-Group/qwprot.git
+[submodule "external/evobot"]
+	path = external/evobot
+	url = https://github.com/benjdarling/EvoBot.git

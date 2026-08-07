@@ -29,6 +29,8 @@ endif()
 # Set where sources located.
 set(DIR_SRC "src")
 
+add_subdirectory(external/evobot)
+
 # Add sources
 set(SRC_COMMON
 	"${DIR_SRC}/bothtools.c"
@@ -38,9 +40,6 @@ set(SRC_COMMON
 	"${DIR_SRC}/common.c"
 	"${DIR_SRC}/crc.c"
 	"${DIR_SRC}/cvar.c"
-	"${DIR_SRC}/evobot/evobot.c"
-	"${DIR_SRC}/evobot/evobot_nav.c"
-	"${DIR_SRC}/evobot/evobot_nav_convex.c"
 	"${DIR_SRC}/evobot_qw_adapter.c"
 	"${DIR_SRC}/fs.c"
 	"${DIR_SRC}/hash.c"
@@ -211,7 +210,7 @@ endif()
 # Assign compiler flags
 target_compile_options(${PROJECT_NAME} PRIVATE ${CFLAGS})
 
-target_link_libraries(${PROJECT_NAME} Threads::Threads)
+target_link_libraries(${PROJECT_NAME} evobot_core Threads::Threads)
 
 
 ######################################################################################################

@@ -1,7 +1,7 @@
 #ifndef EVOBOT_QW_ADAPTER_H
 #define EVOBOT_QW_ADAPTER_H
 
-#include "evobot/evobot.h"
+#include <evobot/evobot.h>
 
 void EvoBot_QW_Init(void);
 void EvoBot_QW_MapLoaded(void);
