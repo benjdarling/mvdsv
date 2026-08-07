@@ -413,6 +413,63 @@ static int EvoBot_QW_GetInteractor(int index, evobot_host_interactor_t *interact
 	return 0;
 }
 
+static int EvoBot_QW_BoundsIntersect(const evobot_bounds_t *a,
+	const evobot_bounds_t *b)
+{
+	int axis;
+
+	for (axis = 0; axis < 3; axis++)
+	{
+		if (a->maxs.v[axis] < b->mins.v[axis] ||
+			a->mins.v[axis] > b->maxs.v[axis])
+			return 0;
+	}
+	return 1;
+}
+
+static evobot_dynamic_blocker_state_t EvoBot_QW_DynamicBlockerState(
+	const evobot_host_interactor_t *interactor,
+	const evobot_bounds_t *crossing_bounds)
+{
+	extern vec3_t player_mins;
+	extern vec3_t player_maxs;
+	int i;
+
+	if (!interactor || !crossing_bounds || sv.state != ss_active ||
+		!interactor->dynamic_brush)
+		return EVOBOT_DYNAMIC_BLOCKER_UNKNOWN;
+	if (interactor->kind != EVOBOT_INTERACTOR_DOOR)
+		return EVOBOT_DYNAMIC_BLOCKER_UNKNOWN;
+	for (i = 0; i < sv.num_edicts; i++)
+	{
+		edict_t *entity = EDICT_NUM(i);
+		evobot_bounds_t blocking_bounds;
+		const char *classname;
+		const char *model;
+		int axis;
+
+		if (!entity || entity->e.free || !entity->v->classname)
+			continue;
+		classname = PR_GetEntityString(entity->v->classname);
+		model = PR_GetEntityString(entity->v->model);
+		if (EvoBot_QW_InteractorKind(classname) != interactor->kind ||
+			!interactor->model[0] || strcmp(model, interactor->model))
+			continue;
+		if (entity->v->solid != SOLID_BSP)
+			return EVOBOT_DYNAMIC_BLOCKER_CLEAR;
+		for (axis = 0; axis < 3; axis++)
+		{
+			blocking_bounds.mins.v[axis] = entity->v->absmin[axis] -
+				player_maxs[axis];
+			blocking_bounds.maxs.v[axis] = entity->v->absmax[axis] -
+				player_mins[axis];
+		}
+		return EvoBot_QW_BoundsIntersect(&blocking_bounds, crossing_bounds) ?
+			EVOBOT_DYNAMIC_BLOCKER_BLOCKED : EVOBOT_DYNAMIC_BLOCKER_CLEAR;
+	}
+	return EVOBOT_DYNAMIC_BLOCKER_UNKNOWN;
+}
+
 static int EvoBot_QW_FileSize(const char *path, size_t *size)
 {
 	vfsfile_t *file;
@@ -673,6 +730,104 @@ static void EvoBot_QW_NavExportObj_f(void)
 	EvoBot_NavConvexExportObj();
 }
 
+static int EvoBot_QW_NavParseArea(int argument, uint32_t *area)
+{
+	char *end;
+	unsigned long value;
+
+	if (!area || argument >= Cmd_Argc() || !Cmd_Argv(argument)[0])
+		return 0;
+	value = strtoul(Cmd_Argv(argument), &end, 10);
+	if (*end || !value || value > UINT32_MAX)
+		return 0;
+	*area = (uint32_t)value;
+	return 1;
+}
+
+static int EvoBot_QW_NavRouteSource(uint32_t *area)
+{
+	int i;
+
+	for (i = 0; i < MAX_CLIENTS; i++)
+	{
+		evobot_vec3_t origin;
+
+		if (evobot_qw_client_handles[i] == EVOBOT_CLIENT_HANDLE_INVALID ||
+			!EvoBot_QW_IsBotClientValid(evobot_qw_client_handles[i]))
+			continue;
+		EvoBot_QW_CopyVector(svs.clients[i].edict->v->origin, &origin);
+		if (EvoBot_NavDebugFindArea(&origin, area))
+			return 1;
+	}
+	Con_Printf("EvoBot routing: add an EvoBot or provide an explicit source area\n");
+	return 0;
+}
+
+static void EvoBot_QW_NavRouteExit_f(void)
+{
+	uint32_t source = 0;
+
+	if (Cmd_Argc() > 2 ||
+		(Cmd_Argc() == 2 && !EvoBot_QW_NavParseArea(1, &source)))
+	{
+		Con_Printf("usage: evobot_nav_route_exit [source area]\n");
+		return;
+	}
+	if (Cmd_Argc() == 1 && !EvoBot_QW_NavRouteSource(&source))
+		return;
+	if (!EvoBot_NavRouteBuild(source, NULL) || !EvoBot_NavRouteSelectExit())
+		return;
+	Con_Printf("EvoBot route to exit\n");
+	EvoBot_NavRoutePrintStatus();
+}
+
+static void EvoBot_QW_NavRouteArea_f(void)
+{
+	uint32_t source = 0;
+	uint32_t destination;
+
+	if ((Cmd_Argc() != 2 && Cmd_Argc() != 3) ||
+		!EvoBot_QW_NavParseArea(1, &destination) ||
+		(Cmd_Argc() == 3 && !EvoBot_QW_NavParseArea(2, &source)))
+	{
+		Con_Printf("usage: evobot_nav_route_area <area id> [source area]\n");
+		return;
+	}
+	if ((Cmd_Argc() == 2 && !EvoBot_QW_NavRouteSource(&source)) ||
+		!EvoBot_NavRouteBuild(source, NULL) ||
+		!EvoBot_NavRouteSelectArea(destination))
+		return;
+	EvoBot_NavRoutePrintStatus();
+}
+
+static void EvoBot_QW_NavRouteClear_f(void)
+{
+	EvoBot_NavRouteClear();
+	Con_Printf("EvoBot route cleared\n");
+}
+
+static void EvoBot_QW_NavRouteStatus_f(void)
+{
+	EvoBot_NavRoutePrintStatus();
+}
+
+static void EvoBot_QW_NavCost_f(void)
+{
+	uint32_t area;
+
+	if (Cmd_Argc() != 2 || !EvoBot_QW_NavParseArea(1, &area))
+	{
+		Con_Printf("usage: evobot_nav_cost <area id>\n");
+		return;
+	}
+	EvoBot_NavRoutePrintCost(area);
+}
+
+static void EvoBot_QW_NavRouteValidate_f(void)
+{
+	EvoBot_NavRouteValidate();
+}
+
 void EvoBot_QW_Init(void)
 {
 	if (evobot_qw_initialized)
@@ -694,6 +849,7 @@ void EvoBot_QW_Init(void)
 	evobot_qw_host.collision_node = EvoBot_QW_CollisionNode;
 	evobot_qw_host.interactor_count = EvoBot_QW_InteractorCount;
 	evobot_qw_host.get_interactor = EvoBot_QW_GetInteractor;
+	evobot_qw_host.dynamic_blocker_state = EvoBot_QW_DynamicBlockerState;
 	evobot_qw_host.file_size = EvoBot_QW_FileSize;
 	evobot_qw_host.read_file = EvoBot_QW_ReadFile;
 	evobot_qw_host.write_file = EvoBot_QW_WriteFile;
@@ -711,6 +867,12 @@ void EvoBot_QW_Init(void)
 	Cmd_AddCommand("evobot_nav_load", EvoBot_QW_NavLoad_f);
 	Cmd_AddCommand("evobot_nav_clear", EvoBot_QW_NavClear_f);
 	Cmd_AddCommand("evobot_nav_export_obj", EvoBot_QW_NavExportObj_f);
+	Cmd_AddCommand("evobot_nav_route_exit", EvoBot_QW_NavRouteExit_f);
+	Cmd_AddCommand("evobot_nav_route_area", EvoBot_QW_NavRouteArea_f);
+	Cmd_AddCommand("evobot_nav_route_clear", EvoBot_QW_NavRouteClear_f);
+	Cmd_AddCommand("evobot_nav_route_status", EvoBot_QW_NavRouteStatus_f);
+	Cmd_AddCommand("evobot_nav_cost", EvoBot_QW_NavCost_f);
+	Cmd_AddCommand("evobot_nav_route_validate", EvoBot_QW_NavRouteValidate_f);
 	evobot_qw_initialized = 1;
 }
 
