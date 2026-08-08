@@ -2,6 +2,8 @@
 
 #include "evobot_qw_adapter.h"
 
+#include <float.h>
+
 static evobot_host_api_t evobot_qw_host;
 static int evobot_qw_initialized;
 static int evobot_qw_map_loaded;
@@ -187,7 +189,8 @@ static int EvoBot_QW_SimulatePlayerMove(
 	pmove.cmd.forwardmove = command->forward_move;
 	pmove.cmd.sidemove = command->side_move;
 	pmove.cmd.upmove = command->up_move;
-	pmove.cmd.buttons = (byte)command->buttons;
+	pmove.cmd.buttons = (byte)((command->buttons & EVOBOT_PLAYER_BUTTON_JUMP) ?
+		BUTTON_JUMP : 0);
 	pmove.cmd.impulse = (byte)command->impulse;
 	VectorCopy(pmove.angles, pmove.cmd.angles);
 	EvoBot_QW_SetMoveVars();
@@ -287,8 +290,9 @@ static evobot_interactor_kind_t EvoBot_QW_InteractorKind(const char *classname)
 		return EVOBOT_INTERACTOR_TELEPORT_DESTINATION;
 	if (!strcmp(classname, "trigger_changelevel"))
 		return EVOBOT_INTERACTOR_LEVEL_EXIT;
-	if (!strcmp(classname, "trigger_counter") || !strcmp(classname, "trigger_once") ||
-		!strcmp(classname, "trigger_multiple"))
+	if (!strcmp(classname, "trigger_once") || !strcmp(classname, "trigger_multiple"))
+		return EVOBOT_INTERACTOR_TRIGGER;
+	if (!strcmp(classname, "trigger_counter") || !strcmp(classname, "trigger_relay"))
 		return EVOBOT_INTERACTOR_LOGIC;
 	return EVOBOT_INTERACTOR_OTHER;
 }
@@ -359,6 +363,14 @@ static void EvoBot_QW_CopyOptionalString(edict_t *entity, const char *field,
 	strlcpy(destination, PR_GetEntityString(value->string), destination_size);
 }
 
+static float EvoBot_QW_OptionalFloat(edict_t *entity, const char *field,
+	float fallback)
+{
+	eval_t *value = PR_GetEdictFieldValue(entity, (char *)field);
+
+	return value ? value->_float : fallback;
+}
+
 static int EvoBot_QW_GetInteractor(int index, evobot_host_interactor_t *interactor)
 {
 	int found = 0;
@@ -386,6 +398,28 @@ static int EvoBot_QW_GetInteractor(int index, evobot_host_interactor_t *interact
 		EvoBot_QW_CopyVector(entity->v->absmax, &interactor->bounds.maxs);
 		interactor->swept_bounds = interactor->bounds;
 		EvoBot_QW_CopyVector(entity->v->origin, &interactor->origin);
+		if (kind == EVOBOT_INTERACTOR_TELEPORT_DESTINATION)
+		{
+			eval_t *mangle = PR_GetEdictFieldValue(entity, "mangle");
+			int axis;
+
+			if (mangle)
+			{
+				EvoBot_QW_CopyVector(mangle->vector, &interactor->angles);
+				interactor->has_angles = 1;
+			}
+			else
+			{
+				EvoBot_QW_CopyVector(entity->v->angles, &interactor->angles);
+				for (axis = 0; axis < 3; axis++)
+					if (entity->v->angles[axis] != 0)
+						interactor->has_angles = 1;
+			}
+			EvoBot_QW_CopyVector(entity->v->velocity, &interactor->velocity);
+			for (axis = 0; axis < 3; axis++)
+				if (entity->v->velocity[axis] != 0)
+					interactor->has_velocity = 1;
+		}
 		classname = PR_GetEntityString(entity->v->classname);
 		strlcpy(interactor->classname, classname, sizeof(interactor->classname));
 		strlcpy(interactor->model, PR_GetEntityString(entity->v->model),
@@ -396,6 +430,33 @@ static int EvoBot_QW_GetInteractor(int index, evobot_host_interactor_t *interact
 			sizeof(interactor->targetname));
 		EvoBot_QW_CopyOptionalString(entity, "map", interactor->destination_map,
 			sizeof(interactor->destination_map));
+		interactor->spawnflags = (int)entity->v->spawnflags;
+		interactor->health = entity->v->health;
+		interactor->speed = EvoBot_QW_OptionalFloat(entity, "speed", 0);
+		interactor->wait = EvoBot_QW_OptionalFloat(entity, "wait", 0);
+		interactor->endpoint_a = interactor->origin;
+		interactor->endpoint_b = interactor->origin;
+		interactor->endpoint_a_bounds = interactor->bounds;
+		interactor->endpoint_b_bounds = interactor->bounds;
+		if (kind == EVOBOT_INTERACTOR_DOOR)
+			interactor->activation = interactor->health > 0 ?
+				EVOBOT_ACTIVATION_SHOOT : interactor->targetname[0] ?
+				EVOBOT_ACTIVATION_EXTERNAL : EVOBOT_ACTIVATION_APPROACH;
+		else if (kind == EVOBOT_INTERACTOR_BUTTON)
+			interactor->activation = interactor->health > 0 ?
+				EVOBOT_ACTIVATION_SHOOT : EVOBOT_ACTIVATION_TOUCH;
+		else if (kind == EVOBOT_INTERACTOR_TRIGGER)
+			interactor->activation = EVOBOT_ACTIVATION_TOUCH;
+		else if (kind == EVOBOT_INTERACTOR_PLATFORM)
+			interactor->activation = interactor->targetname[0] ?
+				EVOBOT_ACTIVATION_EXTERNAL : EVOBOT_ACTIVATION_TOUCH;
+		else if (kind == EVOBOT_INTERACTOR_TRAIN || kind == EVOBOT_INTERACTOR_LOGIC)
+			interactor->activation = EVOBOT_ACTIVATION_EXTERNAL;
+		else
+			interactor->activation = EVOBOT_ACTIVATION_NONE;
+		interactor->lifetime = !strcmp(classname, "trigger_once") ||
+			interactor->wait < 0 ? EVOBOT_INTERACTOR_PERSISTENT :
+			EVOBOT_INTERACTOR_TEMPORARY;
 
 		if (interactor->dynamic_brush)
 		{
@@ -403,9 +464,38 @@ static int EvoBot_QW_GetInteractor(int index, evobot_host_interactor_t *interact
 			eval_t *pos2 = PR_GetEdictFieldValue(entity, "pos2");
 
 			if (pos1)
+			{
+				EvoBot_QW_CopyVector(pos1->vector, &interactor->endpoint_a);
 				EvoBot_QW_ExpandSweptBounds(interactor, pos1->vector);
+			}
 			if (pos2)
+			{
+				EvoBot_QW_CopyVector(pos2->vector, &interactor->endpoint_b);
 				EvoBot_QW_ExpandSweptBounds(interactor, pos2->vector);
+			}
+			interactor->has_movement = pos1 && pos2;
+			if (interactor->has_movement)
+			{
+				float distance = 0;
+				int axis;
+
+				for (axis = 0; axis < 3; axis++)
+				{
+					float a_delta = interactor->endpoint_a.v[axis] -
+						interactor->origin.v[axis];
+					float b_delta = interactor->endpoint_b.v[axis] -
+						interactor->origin.v[axis];
+					float movement = interactor->endpoint_b.v[axis] -
+						interactor->endpoint_a.v[axis];
+					interactor->endpoint_a_bounds.mins.v[axis] += a_delta;
+					interactor->endpoint_a_bounds.maxs.v[axis] += a_delta;
+					interactor->endpoint_b_bounds.mins.v[axis] += b_delta;
+					interactor->endpoint_b_bounds.maxs.v[axis] += b_delta;
+					distance += movement * movement;
+				}
+				interactor->travel_time = interactor->speed > 0 ?
+					sqrtf(distance) / interactor->speed : 0;
+			}
 		}
 		return 1;
 	}
@@ -468,6 +558,51 @@ static evobot_dynamic_blocker_state_t EvoBot_QW_DynamicBlockerState(
 			EVOBOT_DYNAMIC_BLOCKER_BLOCKED : EVOBOT_DYNAMIC_BLOCKER_CLEAR;
 	}
 	return EVOBOT_DYNAMIC_BLOCKER_UNKNOWN;
+}
+
+static int EvoBot_QW_InteractorState(const evobot_host_interactor_t *interactor,
+	evobot_host_interactor_state_t *state)
+{
+	int i;
+
+	if (!interactor || !state || sv.state != ss_active)
+		return 0;
+	for (i = 0; i < sv.num_edicts; i++)
+	{
+		edict_t *entity = EDICT_NUM(i);
+		const char *model;
+		int moving = 0;
+		int at_a = 1;
+		int at_b = 1;
+		int axis;
+
+		if (!entity || entity->e.free || !entity->v->classname)
+			continue;
+		model = PR_GetEntityString(entity->v->model);
+		if (!interactor->model[0] || strcmp(model, interactor->model) ||
+			EvoBot_QW_InteractorKind(PR_GetEntityString(entity->v->classname)) !=
+				interactor->kind)
+			continue;
+		memset(state, 0, sizeof(*state));
+		EvoBot_QW_CopyVector(entity->v->origin, &state->origin);
+		EvoBot_QW_CopyVector(entity->v->absmin, &state->bounds.mins);
+		EvoBot_QW_CopyVector(entity->v->absmax, &state->bounds.maxs);
+		for (axis = 0; axis < 3; axis++)
+		{
+			if (fabsf(entity->v->velocity[axis]) > 0.1f) moving = 1;
+			if (fabsf(entity->v->origin[axis] - interactor->endpoint_a.v[axis]) > 1.0f)
+				at_a = 0;
+			if (fabsf(entity->v->origin[axis] - interactor->endpoint_b.v[axis]) > 1.0f)
+				at_b = 0;
+		}
+		state->state = moving ? EVOBOT_INTERACTOR_STATE_MOVING :
+			at_a ? EVOBOT_INTERACTOR_STATE_AT_ENDPOINT_A :
+			at_b ? EVOBOT_INTERACTOR_STATE_AT_ENDPOINT_B :
+			entity->v->solid == SOLID_NOT ? EVOBOT_INTERACTOR_STATE_DISABLED :
+			EVOBOT_INTERACTOR_STATE_UNKNOWN;
+		return 1;
+	}
+	return 0;
 }
 
 static int EvoBot_QW_FileSize(const char *path, size_t *size)
@@ -758,6 +893,49 @@ static int EvoBot_QW_NavRouteSource(uint32_t *area)
 		EvoBot_QW_CopyVector(svs.clients[i].edict->v->origin, &origin);
 		if (EvoBot_NavDebugFindArea(&origin, area))
 			return 1;
+		Con_Printf("EvoBot routing: bot %d origin [%.2f %.2f %.2f] is outside "
+			"all navigation areas\n", i, origin.v[0], origin.v[1], origin.v[2]);
+		{
+			evobot_nav_debug_summary_t summary;
+			evobot_nav_debug_area_t nearest;
+			float nearest_distance = FLT_MAX;
+			size_t index;
+
+			memset(&nearest, 0, sizeof(nearest));
+			if (EvoBot_NavDebugSummary(&summary))
+			{
+				for (index = 0; index < summary.area_count; index++)
+				{
+					evobot_nav_debug_area_t candidate;
+					float distance_squared = 0;
+					int axis;
+
+					if (!EvoBot_NavDebugArea(index, &candidate))
+						continue;
+					for (axis = 0; axis < 3; axis++)
+					{
+						float delta = origin.v[axis] < candidate.bounds.mins.v[axis] ?
+							candidate.bounds.mins.v[axis] - origin.v[axis] :
+							origin.v[axis] > candidate.bounds.maxs.v[axis] ?
+							origin.v[axis] - candidate.bounds.maxs.v[axis] : 0;
+
+						distance_squared += delta * delta;
+					}
+					if (distance_squared < nearest_distance)
+					{
+						nearest_distance = distance_squared;
+						nearest = candidate;
+					}
+				}
+				if (nearest.id)
+					Con_Printf("EvoBot routing: nearest area %u is %.3f units away "
+						"(supported %d, bounds [%.1f %.1f %.1f]-[%.1f %.1f %.1f])\n",
+						nearest.id, sqrtf(nearest_distance), nearest.supported,
+						nearest.bounds.mins.v[0], nearest.bounds.mins.v[1],
+						nearest.bounds.mins.v[2], nearest.bounds.maxs.v[0],
+						nearest.bounds.maxs.v[1], nearest.bounds.maxs.v[2]);
+			}
+		}
 	}
 	Con_Printf("EvoBot routing: add an EvoBot or provide an explicit source area\n");
 	return 0;
@@ -780,6 +958,26 @@ static void EvoBot_QW_NavRouteExit_f(void)
 	Con_Printf("EvoBot route to exit\n");
 	EvoBot_NavRoutePrintStatus();
 }
+
+static void EvoBot_QW_NavPlanExit_f(void)
+{
+	uint32_t source = 0;
+
+	if (Cmd_Argc() > 2 || (Cmd_Argc() == 2 &&
+		(source = (uint32_t)strtoul(Cmd_Argv(1), NULL, 10)) == 0))
+	{
+		Con_Printf("usage: evobot_nav_plan_exit [source area]\n");
+		return;
+	}
+	if (Cmd_Argc() == 1 && !EvoBot_QW_NavRouteSource(&source))
+		return;
+	Con_Printf("EvoBot plan to exit\n");
+	EvoBot_NavPlanExit(source);
+	EvoBot_NavPlanPrintStatus();
+}
+
+static void EvoBot_QW_NavPlanStatus_f(void) { EvoBot_NavPlanPrintStatus(); }
+static void EvoBot_QW_NavPlanClear_f(void) { EvoBot_NavPlanClear(); }
 
 static void EvoBot_QW_NavRouteArea_f(void)
 {
@@ -828,6 +1026,62 @@ static void EvoBot_QW_NavRouteValidate_f(void)
 	EvoBot_NavRouteValidate();
 }
 
+static void EvoBot_QW_NavProblemReport_f(void)
+{
+	size_t index = 0;
+	size_t count = EvoBot_NavRouteDebugProblemCount();
+
+	if (Cmd_Argc() > 2)
+	{
+		Con_Printf("usage: evobot_nav_problem_report [1-based index]\n");
+		return;
+	}
+	if (Cmd_Argc() == 2)
+	{
+		char *end;
+		unsigned long value = strtoul(Cmd_Argv(1), &end, 10);
+
+		if (*end || !value || value > count)
+		{
+			Con_Printf("evobot_nav_problem_report: index must be 1..%zu\n",
+				count);
+			return;
+		}
+		index = (size_t)value - 1;
+	}
+	else
+	{
+		evobot_nav_route_summary_t summary;
+		size_t i;
+
+		if (EvoBot_NavRouteDebugSummary(&summary) && summary.frontier_portal)
+		{
+			for (i = 0; i < count; i++)
+			{
+				evobot_nav_route_problem_t problem;
+
+				if (EvoBot_NavRouteDebugProblem(i, &problem) &&
+					problem.portal_id == summary.frontier_portal)
+				{
+					index = i;
+					break;
+				}
+			}
+		}
+	}
+	EvoBot_NavRoutePrintProblem(index);
+}
+
+static void EvoBot_QW_NavFrontierReport_f(void)
+{
+	if (Cmd_Argc() != 1)
+	{
+		Con_Printf("usage: evobot_nav_frontier_report\n");
+		return;
+	}
+	EvoBot_NavRoutePrintFrontierAudit();
+}
+
 void EvoBot_QW_Init(void)
 {
 	if (evobot_qw_initialized)
@@ -850,6 +1104,7 @@ void EvoBot_QW_Init(void)
 	evobot_qw_host.interactor_count = EvoBot_QW_InteractorCount;
 	evobot_qw_host.get_interactor = EvoBot_QW_GetInteractor;
 	evobot_qw_host.dynamic_blocker_state = EvoBot_QW_DynamicBlockerState;
+	evobot_qw_host.interactor_state = EvoBot_QW_InteractorState;
 	evobot_qw_host.file_size = EvoBot_QW_FileSize;
 	evobot_qw_host.read_file = EvoBot_QW_ReadFile;
 	evobot_qw_host.write_file = EvoBot_QW_WriteFile;
@@ -873,6 +1128,11 @@ void EvoBot_QW_Init(void)
 	Cmd_AddCommand("evobot_nav_route_status", EvoBot_QW_NavRouteStatus_f);
 	Cmd_AddCommand("evobot_nav_cost", EvoBot_QW_NavCost_f);
 	Cmd_AddCommand("evobot_nav_route_validate", EvoBot_QW_NavRouteValidate_f);
+	Cmd_AddCommand("evobot_nav_plan_exit", EvoBot_QW_NavPlanExit_f);
+	Cmd_AddCommand("evobot_nav_plan_status", EvoBot_QW_NavPlanStatus_f);
+	Cmd_AddCommand("evobot_nav_plan_clear", EvoBot_QW_NavPlanClear_f);
+	Cmd_AddCommand("evobot_nav_problem_report", EvoBot_QW_NavProblemReport_f);
+	Cmd_AddCommand("evobot_nav_frontier_report", EvoBot_QW_NavFrontierReport_f);
 	evobot_qw_initialized = 1;
 }
 
