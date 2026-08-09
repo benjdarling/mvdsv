@@ -290,7 +290,8 @@ static evobot_interactor_kind_t EvoBot_QW_InteractorKind(const char *classname)
 		return EVOBOT_INTERACTOR_TELEPORT_DESTINATION;
 	if (!strcmp(classname, "trigger_changelevel"))
 		return EVOBOT_INTERACTOR_LEVEL_EXIT;
-	if (!strcmp(classname, "trigger_once") || !strcmp(classname, "trigger_multiple"))
+	if (!strcmp(classname, "trigger_once") || !strcmp(classname, "trigger_multiple") ||
+		!strcmp(classname, "trigger_push"))
 		return EVOBOT_INTERACTOR_TRIGGER;
 	if (!strcmp(classname, "trigger_counter") || !strcmp(classname, "trigger_relay"))
 		return EVOBOT_INTERACTOR_LOGIC;
@@ -371,6 +372,92 @@ static float EvoBot_QW_OptionalFloat(edict_t *entity, const char *field,
 	return value ? value->_float : fallback;
 }
 
+static edict_t *EvoBot_QW_FindPathCorner(const char *targetname)
+{
+	int i;
+
+	if (!targetname || !targetname[0])
+		return NULL;
+	for (i = 0; i < sv.num_edicts; i++)
+	{
+		edict_t *entity = EDICT_NUM(i);
+		const char *classname;
+
+		if (!entity || entity->e.free || !entity->v->classname)
+			continue;
+		classname = PR_GetEntityString(entity->v->classname);
+		if (strcmp(classname, "path_corner") && strcmp(classname, "path_corner_train"))
+			continue;
+		if (!strcmp(PR_GetEntityString(entity->v->targetname), targetname))
+			return entity;
+	}
+	return NULL;
+}
+
+static void EvoBot_QW_AddMoverStop(evobot_host_interactor_t *interactor,
+	const evobot_bounds_t *bounds)
+{
+	int axis;
+
+	if (interactor->movement_stop_count >= EVOBOT_NAV_MOVER_STOPS_MAX)
+		return;
+	interactor->movement_stop_bounds[interactor->movement_stop_count++] = *bounds;
+	for (axis = 0; axis < 3; axis++)
+	{
+		if (bounds->mins.v[axis] < interactor->swept_bounds.mins.v[axis])
+			interactor->swept_bounds.mins.v[axis] = bounds->mins.v[axis];
+		if (bounds->maxs.v[axis] > interactor->swept_bounds.maxs.v[axis])
+			interactor->swept_bounds.maxs.v[axis] = bounds->maxs.v[axis];
+	}
+}
+
+static void EvoBot_QW_TrainStops(edict_t *train,
+	evobot_host_interactor_t *interactor)
+{
+	char next_target[EVOBOT_NAV_TARGET_MAX];
+	int guard;
+
+	EvoBot_QW_AddMoverStop(interactor, &interactor->bounds);
+	strlcpy(next_target, interactor->target, sizeof(next_target));
+	for (guard = 0; guard < EVOBOT_NAV_MOVER_STOPS_MAX - 1 && next_target[0]; guard++)
+	{
+		edict_t *corner = EvoBot_QW_FindPathCorner(next_target);
+		evobot_bounds_t stop;
+		int axis;
+
+		if (!corner)
+			break;
+		stop = interactor->bounds;
+		for (axis = 0; axis < 3; axis++)
+		{
+			float delta = corner->v->origin[axis] - interactor->bounds.mins.v[axis];
+			stop.mins.v[axis] += delta;
+			stop.maxs.v[axis] += delta;
+		}
+		EvoBot_QW_AddMoverStop(interactor, &stop);
+		strlcpy(next_target, PR_GetEntityString(corner->v->target),
+			sizeof(next_target));
+		if (interactor->movement_stop_count > 2)
+		{
+			const evobot_bounds_t *first = &interactor->movement_stop_bounds[0];
+			const evobot_bounds_t *last =
+				&interactor->movement_stop_bounds[interactor->movement_stop_count - 1];
+			if (fabsf(first->mins.v[0] - last->mins.v[0]) < 0.1f &&
+				fabsf(first->mins.v[1] - last->mins.v[1]) < 0.1f &&
+				fabsf(first->mins.v[2] - last->mins.v[2]) < 0.1f)
+				break;
+		}
+	}
+	interactor->has_movement = interactor->movement_stop_count > 1;
+	if (interactor->has_movement)
+	{
+		interactor->endpoint_a_bounds = interactor->movement_stop_bounds[0];
+		interactor->endpoint_b_bounds =
+			interactor->movement_stop_bounds[interactor->movement_stop_count - 1];
+	}
+	(void)train;
+}
+
 static int EvoBot_QW_GetInteractor(int index, evobot_host_interactor_t *interactor)
 {
 	int found = 0;
@@ -428,12 +515,32 @@ static int EvoBot_QW_GetInteractor(int index, evobot_host_interactor_t *interact
 			sizeof(interactor->target));
 		strlcpy(interactor->targetname, PR_GetEntityString(entity->v->targetname),
 			sizeof(interactor->targetname));
+		EvoBot_QW_CopyOptionalString(entity, "killtarget", interactor->killtarget,
+			sizeof(interactor->killtarget));
 		EvoBot_QW_CopyOptionalString(entity, "map", interactor->destination_map,
 			sizeof(interactor->destination_map));
 		interactor->spawnflags = (int)entity->v->spawnflags;
 		interactor->health = entity->v->health;
 		interactor->speed = EvoBot_QW_OptionalFloat(entity, "speed", 0);
 		interactor->wait = EvoBot_QW_OptionalFloat(entity, "wait", 0);
+		interactor->activation_required_count =
+			(int)EvoBot_QW_OptionalFloat(entity, "count", 0);
+		if (!strcmp(classname, "trigger_push"))
+		{
+			eval_t *movedir = PR_GetEdictFieldValue(entity, "movedir");
+			int axis;
+
+			if (movedir)
+			{
+				for (axis = 0; axis < 3; axis++)
+					interactor->velocity.v[axis] = movedir->vector[axis] *
+						interactor->speed * 10.0f;
+				interactor->has_velocity = 1;
+			}
+		}
+		if (!strcmp(classname, "trigger_counter") &&
+			interactor->activation_required_count <= 0)
+			interactor->activation_required_count = 2;
 		interactor->endpoint_a = interactor->origin;
 		interactor->endpoint_b = interactor->origin;
 		interactor->endpoint_a_bounds = interactor->bounds;
@@ -450,7 +557,10 @@ static int EvoBot_QW_GetInteractor(int index, evobot_host_interactor_t *interact
 		else if (kind == EVOBOT_INTERACTOR_PLATFORM)
 			interactor->activation = interactor->targetname[0] ?
 				EVOBOT_ACTIVATION_EXTERNAL : EVOBOT_ACTIVATION_TOUCH;
-		else if (kind == EVOBOT_INTERACTOR_TRAIN || kind == EVOBOT_INTERACTOR_LOGIC)
+		else if (kind == EVOBOT_INTERACTOR_TRAIN)
+			interactor->activation = interactor->targetname[0] ?
+				EVOBOT_ACTIVATION_EXTERNAL : EVOBOT_ACTIVATION_APPROACH;
+		else if (kind == EVOBOT_INTERACTOR_LOGIC)
 			interactor->activation = EVOBOT_ACTIVATION_EXTERNAL;
 		else
 			interactor->activation = EVOBOT_ACTIVATION_NONE;
@@ -497,6 +607,13 @@ static int EvoBot_QW_GetInteractor(int index, evobot_host_interactor_t *interact
 					sqrtf(distance) / interactor->speed : 0;
 			}
 		}
+		if (kind == EVOBOT_INTERACTOR_PLATFORM && interactor->has_movement)
+		{
+			EvoBot_QW_AddMoverStop(interactor, &interactor->endpoint_a_bounds);
+			EvoBot_QW_AddMoverStop(interactor, &interactor->endpoint_b_bounds);
+		}
+		else if (kind == EVOBOT_INTERACTOR_TRAIN)
+			EvoBot_QW_TrainStops(entity, interactor);
 		return 1;
 	}
 
@@ -977,6 +1094,7 @@ static void EvoBot_QW_NavPlanExit_f(void)
 }
 
 static void EvoBot_QW_NavPlanStatus_f(void) { EvoBot_NavPlanPrintStatus(); }
+static void EvoBot_QW_NavPlanDump_f(void) { EvoBot_NavPlanPrintDump(); }
 static void EvoBot_QW_NavPlanClear_f(void) { EvoBot_NavPlanClear(); }
 
 static void EvoBot_QW_NavRouteArea_f(void)
@@ -1082,6 +1200,69 @@ static void EvoBot_QW_NavFrontierReport_f(void)
 	EvoBot_NavRoutePrintFrontierAudit();
 }
 
+static void EvoBot_QW_NavWaterJump_f(void)
+{
+	evobot_nav_debug_air_candidate_t candidate;
+	evobot_nav_debug_air_kind_t kind;
+	const char *label;
+	unsigned long portal;
+	unsigned long source;
+	unsigned long destination;
+	char *end;
+
+	kind = !strcmp(Cmd_Argv(0), "evobot_nav_water_exit") ?
+		EVOBOT_NAV_DEBUG_AIR_WATER_EXIT :
+		(!strcmp(Cmd_Argv(0), "evobot_nav_jump_candidate") ?
+		 EVOBOT_NAV_DEBUG_AIR_JUMP_UP : EVOBOT_NAV_DEBUG_AIR_WATER_JUMP);
+	label = kind == EVOBOT_NAV_DEBUG_AIR_WATER_EXIT ? "WATER_EXIT" :
+		(kind == EVOBOT_NAV_DEBUG_AIR_JUMP_UP ? "JUMP_UP" : "WATER_JUMP");
+	if (Cmd_Argc() != 4)
+	{
+		Con_Printf("usage: %s <portal> <source> <destination>\n", Cmd_Argv(0));
+		return;
+	}
+	portal = strtoul(Cmd_Argv(1), &end, 10);
+	if (*end || !portal)
+		goto invalid;
+	source = strtoul(Cmd_Argv(2), &end, 10);
+	if (*end || !source)
+		goto invalid;
+	destination = strtoul(Cmd_Argv(3), &end, 10);
+	if (*end || !destination)
+		goto invalid;
+	if (!EvoBot_NavDebugAirCandidate((uint32_t)portal, (uint32_t)source,
+		(uint32_t)destination, kind, &candidate))
+	{
+		Con_Printf("water-jump candidate unavailable\n");
+		return;
+	}
+	Con_Printf("%s diagnostic: portal %u source %u destination %u present %d valid %d rejection %s attempts %u\n",
+		label,
+		candidate.portal_id, candidate.source_area,
+		candidate.requested_destination_area, candidate.present, candidate.valid,
+		EvoBot_NavDebugAirRejectionName(candidate.rejection), candidate.attempts);
+	Con_Printf("%s direction [%.3f %.3f %.3f] edge %u width %.2f speed %.1f approach %u steps %u blocked %u left %d entered %d activated %d landed %d hull-clear %d area %u\n",
+		label,
+		candidate.direction.v[0], candidate.direction.v[1], candidate.direction.v[2],
+		candidate.edge_index, candidate.portal_width, candidate.command_speed,
+		candidate.approach_frames,
+		candidate.move_steps, candidate.blocked_steps, candidate.left_source,
+		candidate.entered_destination, candidate.airborne, candidate.landed,
+		candidate.landing_hull_clear, candidate.landing_area);
+	Con_Printf("%s points: start [%.2f %.2f %.2f] launch [%.2f %.2f %.2f] landing [%.2f %.2f %.2f] final [%.2f %.2f %.2f] time %.3f rise %.2f horizontal %.2f\n",
+		label,
+		candidate.start_origin.v[0], candidate.start_origin.v[1], candidate.start_origin.v[2],
+		candidate.launch_origin.v[0], candidate.launch_origin.v[1], candidate.launch_origin.v[2],
+		candidate.landing_origin.v[0], candidate.landing_origin.v[1], candidate.landing_origin.v[2],
+		candidate.final_origin.v[0], candidate.final_origin.v[1], candidate.final_origin.v[2],
+		candidate.elapsed, candidate.maximum_rise,
+		candidate.horizontal_displacement);
+	return;
+
+invalid:
+	Con_Printf("evobot_nav_water_jump: all ids must be positive integers\n");
+}
+
 void EvoBot_QW_Init(void)
 {
 	if (evobot_qw_initialized)
@@ -1130,9 +1311,13 @@ void EvoBot_QW_Init(void)
 	Cmd_AddCommand("evobot_nav_route_validate", EvoBot_QW_NavRouteValidate_f);
 	Cmd_AddCommand("evobot_nav_plan_exit", EvoBot_QW_NavPlanExit_f);
 	Cmd_AddCommand("evobot_nav_plan_status", EvoBot_QW_NavPlanStatus_f);
+	Cmd_AddCommand("evobot_nav_plan_dump", EvoBot_QW_NavPlanDump_f);
 	Cmd_AddCommand("evobot_nav_plan_clear", EvoBot_QW_NavPlanClear_f);
 	Cmd_AddCommand("evobot_nav_problem_report", EvoBot_QW_NavProblemReport_f);
 	Cmd_AddCommand("evobot_nav_frontier_report", EvoBot_QW_NavFrontierReport_f);
+	Cmd_AddCommand("evobot_nav_water_jump", EvoBot_QW_NavWaterJump_f);
+	Cmd_AddCommand("evobot_nav_water_exit", EvoBot_QW_NavWaterJump_f);
+	Cmd_AddCommand("evobot_nav_jump_candidate", EvoBot_QW_NavWaterJump_f);
 	evobot_qw_initialized = 1;
 }
 

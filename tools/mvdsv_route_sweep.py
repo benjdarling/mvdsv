@@ -71,6 +71,11 @@ def classify(route_output: str) -> str:
     return "unknown"
 
 
+def classify_plan(plan_output: str) -> str:
+    match = re.search(r"^result:\s*(.+?)\s*$", plan_output, re.MULTILINE | re.IGNORECASE)
+    return match.group(1).strip().lower() if match else "unknown"
+
+
 def run_map(
     executable: Path,
     basedir: Path,
@@ -79,6 +84,7 @@ def run_map(
     password: str,
     verify_persistence: bool = False,
     plan: bool = False,
+    debug_commands: list[str] | None = None,
 ) -> dict[str, object]:
     command = [
         str(executable),
@@ -120,6 +126,7 @@ def run_map(
     started = time.monotonic()
     outputs: dict[str, str] = {}
     metrics: dict[str, object] = {}
+    plan_result = "not-run"
     try:
         outputs["startup"] = wait_until_ready(process, port, password)
         outputs["generate"] = rcon(port, password, "evobot_nav_generate")
@@ -141,11 +148,14 @@ def run_map(
         outputs["frontier_report"] = rcon(
             port, password, "evobot_nav_frontier_report"
         )
+        if plan:
+            outputs["plan"] = rcon(port, password, "evobot_nav_plan_exit")
+            plan_result = classify_plan(outputs["plan"])
+        for index, debug_command in enumerate(debug_commands or []):
+            outputs[f"debug_{index}"] = rcon(port, password, debug_command)
         outputs["route_validate"] = rcon(
             port, password, "evobot_nav_route_validate"
         )
-        if plan:
-            outputs["plan"] = rcon(port, password, "evobot_nav_plan_exit")
         if verify_persistence:
             outputs["save"] = rcon(port, password, "evobot_nav_save")
             nav_path = basedir / "evosp" / "evobot" / "nav" / f"{map_name}.botnav"
@@ -166,6 +176,41 @@ def run_map(
             metrics["reachability_count"] = len(
                 persisted.get("reachabilities", [])
             )
+            push_ids = {
+                interactor.get("id")
+                for interactor in persisted.get("interactors", [])
+                if interactor.get("classname") == "trigger_push"
+            }
+            metrics["push_interactors"] = [
+                interactor
+                for interactor in persisted.get("interactors", [])
+                if interactor.get("id") in push_ids
+            ]
+            metrics["push_links"] = [
+                reachability
+                for reachability in persisted.get("reachabilities", [])
+                if reachability.get("source_interactor") in push_ids
+            ]
+            metrics["unresolved_water_jumps"] = [
+                reachability
+                for reachability in persisted.get("reachabilities", [])
+                if reachability.get("travel_type") == "unresolved_water_jump"
+            ]
+            mover_ids = {
+                interactor.get("id")
+                for interactor in persisted.get("interactors", [])
+                if interactor.get("type") in {"platform", "train"}
+            }
+            metrics["mover_interactors"] = [
+                interactor
+                for interactor in persisted.get("interactors", [])
+                if interactor.get("id") in mover_ids
+            ]
+            metrics["platform_links"] = [
+                reachability
+                for reachability in persisted.get("reachabilities", [])
+                if reachability.get("travel_type") == "platform"
+            ]
             outputs["clear"] = rcon(port, password, "evobot_nav_clear")
             outputs["load"] = rcon(port, password, "evobot_nav_load")
             outputs["loaded_reach_status"] = rcon(
@@ -202,6 +247,7 @@ def run_map(
     return {
         "map": map_name,
         "result": result,
+        "plan_result": plan_result,
         "seconds": round(time.monotonic() - started, 3),
         "error": error,
         "outputs": outputs,
@@ -219,6 +265,7 @@ def main() -> int:
     parser.add_argument("--base-port", type=int, default=27630)
     parser.add_argument("--verify-persistence", action="store_true")
     parser.add_argument("--plan", action="store_true")
+    parser.add_argument("--debug-command", action="append", default=[])
     args = parser.parse_args()
 
     maps = [name.lower() for name in args.maps if name.lower() not in args.exclude]
@@ -248,6 +295,7 @@ def main() -> int:
                 "evobotsweep",
                 args.verify_persistence,
                 args.plan,
+                args.debug_command,
             )
             results.append(result)
             print(
@@ -268,7 +316,10 @@ def main() -> int:
     for result in results:
         counts[str(result["result"])] = counts.get(str(result["result"]), 0) + 1
     print(json.dumps(counts, sort_keys=True))
-    return 0 if all(result["result"] == "reachable" for result in results) else 1
+    return 0 if all(
+        result["result"] == "reachable" or result["plan_result"] == "complete"
+        for result in results
+    ) else 1
 
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 TRAVEL_TYPES = (
-    "walk", "drop", "jump", "teleport", "swim", "water entry",
+    "walk", "drop", "jump", "water jump", "teleport", "platform", "swim", "water entry",
     "water exit", "unresolved water jump",
 )
 
