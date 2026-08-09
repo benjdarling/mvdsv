@@ -85,6 +85,7 @@ def run_map(
     verify_persistence: bool = False,
     plan: bool = False,
     debug_commands: list[str] | None = None,
+    nav_snapshot_dir: Path | None = None,
 ) -> dict[str, object]:
     command = [
         str(executable),
@@ -159,6 +160,9 @@ def run_map(
         if verify_persistence:
             outputs["save"] = rcon(port, password, "evobot_nav_save")
             nav_path = basedir / "evosp" / "evobot" / "nav" / f"{map_name}.botnav"
+            if nav_snapshot_dir is not None:
+                nav_snapshot_dir.mkdir(parents=True, exist_ok=True)
+                (nav_snapshot_dir / nav_path.name).write_bytes(nav_path.read_bytes())
             persisted = json.loads(nav_path.read_text(encoding="utf-8"))
             metrics["format_version"] = persisted.get("version")
             metrics["generation"] = persisted.get("generation", {})
@@ -266,6 +270,7 @@ def main() -> int:
     parser.add_argument("--verify-persistence", action="store_true")
     parser.add_argument("--plan", action="store_true")
     parser.add_argument("--debug-command", action="append", default=[])
+    parser.add_argument("--nav-snapshot-dir", type=Path)
     args = parser.parse_args()
 
     maps = [name.lower() for name in args.maps if name.lower() not in args.exclude]
@@ -296,6 +301,7 @@ def main() -> int:
                 args.verify_persistence,
                 args.plan,
                 args.debug_command,
+                args.nav_snapshot_dir.resolve() if args.nav_snapshot_dir else None,
             )
             results.append(result)
             print(
