@@ -19,9 +19,9 @@ def bounds_distance(a: dict[str, list[float]], b: dict[str, list[float]]) -> flo
     return math.sqrt(total)
 
 
-def flood(seed: int, graph: dict[int, set[int]]) -> set[int]:
-    seen = {seed}
-    queue = deque([seed])
+def flood(seeds: list[int], graph: dict[int, set[int]]) -> set[int]:
+    seen = set(seeds)
+    queue = deque(seeds)
     while queue:
         source = queue.popleft()
         for destination in graph[source]:
@@ -34,8 +34,8 @@ def flood(seed: int, graph: dict[int, set[int]]) -> set[int]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--nav", type=Path, required=True)
-    parser.add_argument("--source", type=int, required=True)
-    parser.add_argument("--destination", type=int, required=True)
+    parser.add_argument("--source", type=int, nargs="+", required=True)
+    parser.add_argument("--destination", type=int, nargs="+", required=True)
     parser.add_argument("--limit", type=int, default=30)
     args = parser.parse_args()
     nav = json.loads(args.nav.read_text(encoding="utf-8"))
@@ -84,7 +84,7 @@ def main() -> int:
             "source": source,
             "destination": destination,
             "shared_portals": [
-                {"id": portal["id"], "kind": portal["kind"]}
+                {"id": portal["id"], "kind": portal.get("kind", portal.get("type"))}
                 for portal in shared
             ],
             "source_bounds": source_area["bounds"],

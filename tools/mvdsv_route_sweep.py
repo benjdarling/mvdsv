@@ -86,6 +86,7 @@ def run_map(
     plan: bool = False,
     debug_commands: list[str] | None = None,
     nav_snapshot_dir: Path | None = None,
+    command_timeout: float = 120.0,
 ) -> dict[str, object]:
     command = [
         str(executable),
@@ -150,7 +151,9 @@ def run_map(
             port, password, "evobot_nav_frontier_report"
         )
         if plan:
-            outputs["plan"] = rcon(port, password, "evobot_nav_plan_exit")
+            outputs["plan"] = rcon(
+                port, password, "evobot_nav_plan_exit", timeout=command_timeout
+            )
             plan_result = classify_plan(outputs["plan"])
         for index, debug_command in enumerate(debug_commands or []):
             outputs[f"debug_{index}"] = rcon(port, password, debug_command)
@@ -271,6 +274,7 @@ def main() -> int:
     parser.add_argument("--plan", action="store_true")
     parser.add_argument("--debug-command", action="append", default=[])
     parser.add_argument("--nav-snapshot-dir", type=Path)
+    parser.add_argument("--command-timeout", type=float, default=120.0)
     args = parser.parse_args()
 
     maps = [name.lower() for name in args.maps if name.lower() not in args.exclude]
@@ -302,6 +306,7 @@ def main() -> int:
                 args.plan,
                 args.debug_command,
                 args.nav_snapshot_dir.resolve() if args.nav_snapshot_dir else None,
+                args.command_timeout,
             )
             results.append(result)
             print(
