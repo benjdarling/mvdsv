@@ -1024,16 +1024,36 @@ void SV_Physics (void)
 }
 
 #ifdef USE_PR2
+#ifdef SERVERONLY
+static double sv_bot_extramsec;
+static sv_bot_timing_stats_t sv_bot_timing_stats;
+#endif
+
+void SV_GetBotTimingStats(sv_bot_timing_stats_t *stats)
+{
+	if (!stats)
+		return;
+#ifdef SERVERONLY
+	*stats = sv_bot_timing_stats;
+	stats->backlog_seconds = sv_bot_extramsec;
+#else
+	memset(stats, 0, sizeof(*stats));
+#endif
+}
+
+void SV_ResetBotTimingStats(void)
+{
+#ifdef SERVERONLY
+	memset(&sv_bot_timing_stats, 0, sizeof(sv_bot_timing_stats));
+#endif
+}
+
 void SV_RunBots(void)
 {
 	int i;
 	client_t *cl,*savehc;
 	edict_t *savesvpl;
 	double max_physfps = sv_maxfps.value;
-#ifdef SERVERONLY
-	static double extramsec = 0;
-#endif
-
 	if (max_physfps < 20 || max_physfps > 1000) {
 		max_physfps = 77.0;
 	}
@@ -1045,18 +1065,35 @@ void SV_RunBots(void)
 	if (sv.old_bot_time) {
 		// don't bother running a frame if 1/fps seconds haven't passed
 		double required = (double) 1.0f / max_physfps;
+		double elapsed = sv.time - sv.old_bot_time;
 
-		extramsec += (sv.time - sv.old_bot_time);
 		sv.old_bot_time = sv.time;
-		if (extramsec < required) {
+		if (elapsed < 0)
+			elapsed = 0;
+		if (elapsed > sv_bot_timing_stats.maximum_elapsed_seconds)
+			sv_bot_timing_stats.maximum_elapsed_seconds = elapsed;
+		sv_bot_extramsec += elapsed;
+		/* A synchronous planner or overloaded host can leave a large amount of
+		 * simulated bot time pending. Replaying that debt one fixed command on every
+		 * faster server loop makes spectators see superhuman acceleration and lets bot
+		 * physics overtake wall time. After a genuine hitch, keep exactly one current
+		 * tick and discard the stale command backlog. Ordinary 10/20 ms scheduler
+		 * jitter still uses the accumulator and retains correct 77 Hz pacing. */
+		if (elapsed > required * 2.0 && sv_bot_extramsec > required) {
+			sv_bot_timing_stats.dropped_seconds += sv_bot_extramsec - required;
+			sv_bot_timing_stats.hitch_clamps++;
+			sv_bot_extramsec = required;
+		}
+		if (sv_bot_extramsec < required) {
 			return;
 		}
 		sv_frametime = required;
-		extramsec -= required;
+		sv_bot_extramsec -= required;
 	}
 	else {
 		sv_frametime = 1.0f / max_physfps; // initialization frame
-		extramsec = 0;
+		sv_bot_extramsec = 0;
+		memset(&sv_bot_timing_stats, 0, sizeof(sv_bot_timing_stats));
 		sv.old_bot_time = sv.time;
 	}
 #else

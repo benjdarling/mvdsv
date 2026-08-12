@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifndef CLIENTONLY
 #include "qwsvdef.h"
+#include "evobot_qw_adapter.h"
 
 static void SV_ClientDownloadComplete(client_t* cl);
 
@@ -4303,6 +4304,7 @@ static void SV_ExecuteClientMove(client_t* cl, usercmd_t oldest, usercmd_t oldcm
 #endif
 
 	SV_PostRunCmd();
+	EvoBot_QW_RecordHumanCommand(playernum, &newcmd);
 }
 
 #ifdef MVD_PEXT1_DEBUG_ANTILAG

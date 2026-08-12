@@ -4,7 +4,8 @@ param(
     [string]$Output = "build/evobot-exec-e1m1",
     [int]$Runs = 1,
     [double]$Timeout = 180,
-    [switch]$LoadNav
+    [switch]$LoadNav,
+    [switch]$CaptureHistory
 )
 
 $arguments = @(
@@ -16,5 +17,6 @@ $arguments = @(
     "--timeout", $Timeout
 )
 if ($LoadNav) { $arguments += "--load-nav" }
+if ($CaptureHistory) { $arguments += "--capture-history" }
 & python @arguments
 exit $LASTEXITCODE

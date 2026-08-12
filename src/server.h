@@ -874,7 +874,17 @@ void SV_RunNQNewmis (void);
 void SV_Impact (edict_t *e1, edict_t *e2);
 void SV_SetMoveVars(void);
 #ifdef USE_PR2
+typedef struct sv_bot_timing_stats_s
+{
+	double backlog_seconds;
+	double dropped_seconds;
+	double maximum_elapsed_seconds;
+	unsigned int hitch_clamps;
+} sv_bot_timing_stats_t;
+
 void SV_RunBots(void);
+void SV_GetBotTimingStats(sv_bot_timing_stats_t *stats);
+void SV_ResetBotTimingStats(void);
 int SV_AddBotClient(const char *name, int bottomcolor, int topcolor, const char *skin, qbool gamecode_bot);
 void RemoveBot(client_t *cl);
 #endif

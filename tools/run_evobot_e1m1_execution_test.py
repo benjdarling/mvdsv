@@ -47,18 +47,21 @@ def write_json(path: Path, value: object) -> None:
 
 
 def run_once(exe: Path, basedir: Path, root: Path, run_number: int,
-             port: int, timeout: float, generate: bool) -> dict[str, object]:
+             port: int, timeout: float, generate: bool,
+             capture_history: bool) -> dict[str, object]:
     password = f"evobotexec{port}"
     run_stem = f"run-{run_number:03d}"
     jsonl_path = root / f"{run_stem}.jsonl"
     summary_path = root / f"{run_stem}-summary.json"
     history_path = root / f"{run_stem}-failure-history.jsonl"
+    frame_history_path = root / f"{run_stem}-frame-history.jsonl"
     failure_nav_path = root / f"{run_stem}-failure-navigation.txt"
     server_log = root / f"{run_stem}-server.log"
     for stale_path in (
         jsonl_path,
         summary_path,
         history_path,
+        frame_history_path,
         failure_nav_path,
         server_log,
         root / f"{run_stem}-initial-route.txt",
@@ -96,7 +99,11 @@ def run_once(exe: Path, basedir: Path, root: Path, run_number: int,
         validation = rcon(port, password, "evobot_nav_reach_validate", timeout=30.0)
         if "failed" in validation.lower() or "validation: ok" not in validation.lower():
             raise RuntimeError(f"reachability validation failed: {validation.strip()}")
-        if generate:
+        # Generation writes the authoritative graph.  Loading an older graph can
+        # perform a deterministic nav-layer migration (for example, PM-proven
+        # no-button JUMPs becoming WALKs); persist that before any bot is added so
+        # execution never owns or repeats reachability classification.
+        if generate or "normalized" in nav_output.lower():
             save_output = rcon(port, password, "evobot_nav_save", timeout=30.0)
             if "saved:" not in save_output.lower():
                 raise RuntimeError(f"navigation save failed: {save_output.strip()}")
@@ -113,7 +120,8 @@ def run_once(exe: Path, basedir: Path, root: Path, run_number: int,
         interactor_text = "\n".join(
             rcon(port, password, f"evobot_nav_interactor {interactor_id}", timeout=2.0)
             for interactor_id in
-            (3, 4, 8, 9, 13, 14, 15, 16, 21, 22, 23, 24, 39, 40, 44, 49))
+            (3, 4, 8, 9, 13, 14, 15, 16, 21, 22, 23, 24,
+             26, 27, 28, 39, 40, 44, 49))
         (root / f"{run_stem}-initial-route.txt").write_text(
             route_output + "\n" + route_text + "\n" + interactor_text,
             encoding="utf-8")
@@ -124,6 +132,7 @@ def run_once(exe: Path, basedir: Path, root: Path, run_number: int,
         start_output = rcon(port, password, "evobot_exec_start e1m1bot", timeout=2.0)
         if "execution started" not in start_output:
             raise RuntimeError(f"executor failed to start: {start_output.strip()}")
+        started = time.monotonic()
         jsonl = jsonl_path.open("w", encoding="utf-8")
         try:
             jsonl.write(json.dumps({"event": "BOT_SPAWNED", "map": "e1m1"}) + "\n")
@@ -178,6 +187,33 @@ def run_once(exe: Path, basedir: Path, root: Path, run_number: int,
                     records.append(snapshot)
                     jsonl.write(json.dumps(snapshot, separators=(",", ":")) + "\n")
                     jsonl.flush()
+                    # Quake's end-of-level trigger enters intermission on the same map;
+                    # it does not necessarily issue a physical changelevel during this
+                    # test window. E1M1's fixed intermission camera is far outside the
+                    # playable exit volume and is therefore unambiguous completion proof.
+                    if (isinstance(origin, list) and len(origin) == 3 and
+                            float(origin[0]) < -150.0 and float(origin[1]) > 2600.0 and
+                            float(origin[2]) > 128.0):
+                        result, reason = "PASS", "physical E1M1 exit to intermission"
+                        record = {"event": "INTERMISSION_REACHED",
+                                  "elapsed": now - started, "origin": origin}
+                        records.append(record)
+                        jsonl.write(json.dumps(record, separators=(",", ":")) + "\n")
+                        jsonl.write(json.dumps({"event": "TEST_COMPLETE",
+                                                "result": "PASS"}) + "\n")
+                        break
+                    if (snapshot.get("movement_disabled") and
+                            snapshot.get("state") == "VERIFY_TRANSITION" and
+                            int(snapshot.get("route_index", 0)) >=
+                            int(snapshot.get("route_length", 0))):
+                        result, reason = "PASS", "physical E1M1 exit entered intermission"
+                        record = {"event": "INTERMISSION_REACHED",
+                                  "elapsed": now - started, "origin": origin}
+                        records.append(record)
+                        jsonl.write(json.dumps(record, separators=(",", ":")) + "\n")
+                        jsonl.write(json.dumps({"event": "TEST_COMPLETE",
+                                                "result": "PASS"}) + "\n")
+                        break
                     if snapshot.get("state") == "FAILED":
                         reason = f"executor failed: {snapshot.get('event')} at step " \
                                  f"{int(snapshot.get('route_index', 0)) + 1}"
@@ -187,6 +223,15 @@ def run_once(exe: Path, basedir: Path, root: Path, run_number: int,
                 reason = f"execution timeout after {timeout:.1f}s"
         finally:
             jsonl.close()
+        if capture_history:
+            try:
+                history = rcon(port, password, "evobot_exec_history e1m1bot",
+                               timeout=10.0)
+                with frame_history_path.open("w", encoding="utf-8") as output:
+                    for match in HISTORY_RE.finditer(history):
+                        output.write(match.group(1) + "\n")
+            except Exception:
+                pass
         if result != "PASS":
             try:
                 history = rcon(port, password, "evobot_exec_history e1m1bot",
@@ -209,7 +254,8 @@ def run_once(exe: Path, basedir: Path, root: Path, run_number: int,
                     rcon(port, password,
                          f"evobot_nav_interactor {interactor_id}", timeout=2.0)
                     for interactor_id in
-                    (3, 4, 8, 9, 13, 14, 15, 16, 21, 22, 23, 24, 39, 40, 44, 49))
+                    (3, 4, 8, 9, 13, 14, 15, 16, 21, 22, 23, 24,
+                     26, 27, 28, 39, 40, 44, 49))
                 failure_nav_path.write_text(
                     failure_route + "\n" + failure_route_dump + "\n" +
                     failure_plan + "\n" + failure_plan_dump + "\n" +
@@ -244,9 +290,10 @@ def run_once(exe: Path, basedir: Path, root: Path, run_number: int,
         match = re.search(r" type (\S+)", line)
         if match:
             travel_types[match.group(1)] = travel_types.get(match.group(1), 0) + 1
+    physical_elapsed = float(last.get("total_elapsed", time.monotonic() - started))
     summary = {
         "run": run_number, "result": result, "reason": reason,
-        "completion_time": round(time.monotonic() - started, 3),
+        "completion_time": round(physical_elapsed, 3),
         "final_map": final_map, "route_steps": len(route_steps),
         "planned_reachabilities": planned_ids, "travel_types": travel_types,
         "reachabilities_completed": int(last.get("reachabilities_completed", 0)),
@@ -262,6 +309,8 @@ def run_once(exe: Path, basedir: Path, root: Path, run_number: int,
         "initial_route": str(root / f"{run_stem}-initial-route.txt"),
         "initial_plan": str(root / f"{run_stem}-initial-plan.txt"),
         "failure_history": str(history_path) if history_path.exists() else None,
+        "frame_history": str(frame_history_path)
+        if frame_history_path.exists() else None,
         "failure_navigation": str(failure_nav_path)
         if failure_nav_path.exists() else None,
     }
@@ -278,6 +327,7 @@ def main() -> int:
     parser.add_argument("--base-port", type=int, default=27720)
     parser.add_argument("--timeout", type=float, default=180.0)
     parser.add_argument("--load-nav", action="store_true")
+    parser.add_argument("--capture-history", action="store_true")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     summaries = []
@@ -286,7 +336,7 @@ def main() -> int:
         summary = run_once(args.exe.resolve(), args.basedir.resolve(),
                            args.output.resolve(), index + 1,
                            args.base_port + index, args.timeout,
-                           not args.load_nav)
+                           not args.load_nav, args.capture_history)
         summaries.append(summary)
         print(f"  {summary['result']}: {summary['reason']}", flush=True)
         write_json(args.output / "runs-summary.json", summaries)

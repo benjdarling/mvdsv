@@ -15,6 +15,12 @@ static evobot_client_handle_t evobot_qw_client_handles[MAX_CLIENTS];
 static evobot_client_handle_t evobot_qw_next_client_handle = 1;
 static double evobot_qw_command_msec_remainder;
 static int evobot_qw_exec_debug;
+static vfsfile_t *evobot_qw_human_capture_file;
+static int evobot_qw_human_capture_slot = -1;
+static unsigned int evobot_qw_human_capture_samples;
+static double evobot_qw_human_capture_start_time;
+static char evobot_qw_human_capture_path[MAX_OSPATH];
+static int evobot_qw_human_capture_added_notarget;
 
 #define EVOBOT_QW_ENTITY_CACHE_MAX 1024
 typedef struct evobot_qw_entity_cache_s
@@ -126,6 +132,21 @@ static int EvoBot_QW_TracePlayerSolids(evobot_client_handle_t handle,
 	result->normal.v[2] = trace.plane.normal[2];
 	result->hit_dynamic = trace.e.ent && trace.e.ent != EDICT_NUM(0) &&
 		trace.e.ent->v->solid != SOLID_BSP;
+	if (trace.e.ent && trace.e.ent != EDICT_NUM(0) && !trace.e.ent->e.free)
+	{
+		const char *classname = trace.e.ent->v->classname ?
+			PR_GetEntityString(trace.e.ent->v->classname) : "";
+
+		result->hit_entity = trace.e.ent->e.entnum;
+		result->hit_actor = !strncmp(classname, "monster_", 8);
+		result->has_hit_bounds = 1;
+		EvoBot_QW_CopyVector(trace.e.ent->v->absmin,
+			&result->hit_bounds.mins);
+		EvoBot_QW_CopyVector(trace.e.ent->v->absmax,
+			&result->hit_bounds.maxs);
+		EvoBot_QW_CopyVector(trace.e.ent->v->velocity,
+			&result->hit_velocity);
+	}
 	return 1;
 }
 
@@ -204,6 +225,44 @@ static int EvoBot_QW_PlayerPhysics(evobot_player_physics_t *physics)
 	return 1;
 }
 
+/* PM_PlayerMove normally receives nearby SOLID_BSP entities in addition to
+ * physent zero (the world model).  Navigation simulation used to provide only
+ * the world, which made static brush walkways such as func_wall bridges vanish
+ * during validation.  The generator would then store a JUMP across geometry a
+ * real player simply runs over.  Add nearby brush models with the same 256-unit
+ * broad-phase used by AddLinksToPmove; bbox actors remain runtime obstacles and
+ * deliberately do not become navigation support. */
+static void EvoBot_QW_AddBrushPhysents(const evobot_vec3_t *origin)
+{
+	int entity_number;
+
+	if (!origin)
+		return;
+	for (entity_number = 1;
+		entity_number < sv.num_edicts && pmove.numphysent < MAX_PHYSENTS;
+		entity_number++)
+	{
+		edict_t *entity = EDICT_NUM(entity_number);
+		physent_t *physent;
+		int axis;
+
+		if (!entity || entity->e.free || entity->v->solid != SOLID_BSP)
+			continue;
+		for (axis = 0; axis < 3; axis++)
+			if (entity->v->absmin[axis] > origin->v[axis] + 256.0f ||
+				entity->v->absmax[axis] < origin->v[axis] - 256.0f)
+				break;
+		if (axis != 3 || (unsigned int)entity->v->modelindex >= MAX_MODELS ||
+			!sv.models[(int)entity->v->modelindex])
+			continue;
+		physent = &pmove.physents[pmove.numphysent++];
+		memset(physent, 0, sizeof(*physent));
+		VectorCopy(entity->v->origin, physent->origin);
+		physent->info = entity_number;
+		physent->model = sv.models[(int)entity->v->modelindex];
+	}
+}
+
 static int EvoBot_QW_SimulatePlayerMove(
 	const evobot_player_move_state_t *state,
 	const evobot_player_move_command_t *command,
@@ -232,6 +291,7 @@ static int EvoBot_QW_SimulatePlayerMove(
 	pmove.pm_type = PM_NORMAL;
 	pmove.numphysent = 1;
 	pmove.physents[0].model = sv.worldmodel;
+	EvoBot_QW_AddBrushPhysents(&state->origin);
 	pmove.cmd.msec = (byte)command->msec;
 	pmove.cmd.forwardmove = command->forward_move;
 	pmove.cmd.sidemove = command->side_move;
@@ -356,13 +416,32 @@ static int EvoBot_QW_InteractorEntityMatches(edict_t *entity,
 {
 	const char *classname;
 	const char *model;
+	const char *target;
+	int axis;
 
 	if (!entity || entity->e.free || !entity->v->classname || !interactor)
 		return 0;
 	classname = PR_GetEntityString(entity->v->classname);
 	model = PR_GetEntityString(entity->v->model);
-	return EvoBot_QW_InteractorKind(classname) == interactor->kind &&
-		interactor->model[0] && !strcmp(model, interactor->model);
+	if (EvoBot_QW_InteractorKind(classname) != interactor->kind ||
+		strcmp(classname, interactor->classname))
+		return 0;
+	if (interactor->model[0])
+		return !strcmp(model, interactor->model);
+
+	/* Point/trigger entities have no brush-model identity.  They were previously
+	 * impossible to find after navigation was loaded, so a consumed trigger_once
+	 * remained UNKNOWN and an already captured dependency plan walked all the way
+	 * back to touch it again.  The authored classname, target and absolute bounds
+	 * form a stable map-local identity for these entities. */
+	target = entity->v->target ? PR_GetEntityString(entity->v->target) : "";
+	if (strcmp(target, interactor->target))
+		return 0;
+	for (axis = 0; axis < 3; axis++)
+		if (fabsf(entity->v->absmin[axis] - interactor->bounds.mins.v[axis]) > 2.0f ||
+			fabsf(entity->v->absmax[axis] - interactor->bounds.maxs.v[axis]) > 2.0f)
+			return 0;
+	return 1;
 }
 
 static edict_t *EvoBot_QW_FindInteractorEntity(
@@ -960,7 +1039,9 @@ static int EvoBot_QW_InteractorState(const evobot_host_interactor_t *interactor,
 	 * interactor no longer has a live edict, QC consumed or destroyed it (for
 	 * example trigger_once after use); expose that persistent fact instead of
 	 * reverting it to UNKNOWN on every plan rebuild. */
-	if (interactor->model[0] == '*')
+	if (interactor->model[0] == '*' ||
+		(interactor->kind == EVOBOT_INTERACTOR_TRIGGER &&
+		 interactor->lifetime == EVOBOT_INTERACTOR_PERSISTENT))
 	{
 		memset(state, 0, sizeof(*state));
 		state->state = EVOBOT_INTERACTOR_STATE_DISABLED;
@@ -1184,6 +1265,301 @@ static void EvoBot_QW_Version_f(void)
 	EvoBot_PrintVersion();
 }
 
+static int EvoBot_QW_HumanCaptureWrite(const char *text)
+{
+	int length;
+
+	if (!evobot_qw_human_capture_file || !text)
+		return 0;
+	length = (int)strlen(text);
+	return VFS_WRITE(evobot_qw_human_capture_file, text, length) == length;
+}
+
+static void EvoBot_QW_HumanCaptureClose(const char *reason)
+{
+	char footer[256];
+	client_t *client = NULL;
+
+	if (!evobot_qw_human_capture_file)
+		return;
+	snprintf(footer, sizeof(footer),
+		"{\"type\":\"capture_end\",\"map\":\"%s\",\"time\":%.6f,"
+		"\"elapsed\":%.6f,\"samples\":%u,\"reason\":\"%s\"}\n",
+		sv.mapname, sv.time, sv.time - evobot_qw_human_capture_start_time,
+		evobot_qw_human_capture_samples, reason ? reason : "stopped");
+	EvoBot_QW_HumanCaptureWrite(footer);
+	VFS_CLOSE(evobot_qw_human_capture_file);
+	evobot_qw_human_capture_file = NULL;
+	if (evobot_qw_human_capture_slot >= 0 &&
+		evobot_qw_human_capture_slot < MAX_CLIENTS)
+		client = &svs.clients[evobot_qw_human_capture_slot];
+	if (evobot_qw_human_capture_added_notarget && client && client->edict &&
+		!client->edict->e.free)
+		client->edict->v->flags =
+			(float)((int)client->edict->v->flags & ~FL_NOTARGET);
+	Con_Printf("EvoBot human capture stopped: %u samples in %s\n",
+		evobot_qw_human_capture_samples, evobot_qw_human_capture_path);
+	evobot_qw_human_capture_slot = -1;
+	evobot_qw_human_capture_added_notarget = 0;
+}
+
+static int EvoBot_QW_HumanCaptureSafeLabel(const char *label)
+{
+	size_t index;
+	size_t length = label ? strlen(label) : 0;
+
+	if (!length || length > 64)
+		return 0;
+	for (index = 0; index < length; index++)
+	{
+		char c = label[index];
+		if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+			(c >= '0' && c <= '9') || c == '-' || c == '_'))
+			return 0;
+	}
+	return 1;
+}
+
+static void EvoBot_QW_HumanCaptureStart_f(void)
+{
+	const char *name;
+	const char *label;
+	char header[256];
+	int slot = -1;
+	int index;
+
+	if (Cmd_Argc() < 2 || Cmd_Argc() > 3 || !Cmd_Argv(1)[0])
+	{
+		Con_Printf("usage: evobot_human_record_start <player name> [label]\n");
+		return;
+	}
+	name = Cmd_Argv(1);
+	label = Cmd_Argc() == 3 ? Cmd_Argv(2) : "e1m1-human";
+	if (!EvoBot_QW_HumanCaptureSafeLabel(label))
+	{
+		Con_Printf("EvoBot human capture: label must contain only A-Z, a-z, 0-9, '-' or '_' (maximum 64)\n");
+		return;
+	}
+	for (index = 0; index < MAX_CLIENTS; index++)
+	{
+		client_t *client = &svs.clients[index];
+		if (client->state != cs_spawned || client->spectator ||
+			strcmp(client->name, name))
+			continue;
+#ifdef USE_PR2
+		if (client->isBot)
+			continue;
+#endif
+		slot = index;
+		break;
+	}
+	if (slot < 0)
+	{
+		Con_Printf("EvoBot human capture: active non-spectator player '%s' not found\n",
+			name);
+		return;
+	}
+	EvoBot_QW_HumanCaptureClose("restarted");
+	snprintf(evobot_qw_human_capture_path,
+		sizeof(evobot_qw_human_capture_path),
+		"evobot/captures/%s.jsonl", label);
+	evobot_qw_human_capture_file = FS_OpenVFS(evobot_qw_human_capture_path,
+		"wb", FS_GAME_OS);
+	if (!evobot_qw_human_capture_file)
+	{
+		Con_Printf("EvoBot human capture: failed to open %s\n",
+			evobot_qw_human_capture_path);
+		return;
+	}
+	evobot_qw_human_capture_slot = slot;
+	evobot_qw_human_capture_samples = 0;
+	evobot_qw_human_capture_start_time = sv.time;
+	evobot_qw_human_capture_added_notarget =
+		((int)svs.clients[slot].edict->v->flags & FL_NOTARGET) == 0;
+	svs.clients[slot].edict->v->flags =
+		(float)((int)svs.clients[slot].edict->v->flags | FL_NOTARGET);
+	snprintf(header, sizeof(header),
+		"{\"type\":\"capture_start\",\"schema\":1,\"map\":\"%s\","
+		"\"time\":%.6f,\"client_slot\":%d,\"test_notarget\":1}\n",
+		sv.mapname, sv.time, slot);
+	if (!EvoBot_QW_HumanCaptureWrite(header))
+	{
+		EvoBot_QW_HumanCaptureClose("write_failed");
+		return;
+	}
+	Con_Printf("EvoBot human capture started for '%s': %s\n", name,
+		evobot_qw_human_capture_path);
+}
+
+static void EvoBot_QW_HumanCaptureStop_f(void)
+{
+	if (!evobot_qw_human_capture_file)
+	{
+		Con_Printf("EvoBot human capture: not recording\n");
+		return;
+	}
+	EvoBot_QW_HumanCaptureClose("manual");
+}
+
+static void EvoBot_QW_HumanCaptureStatus_f(void)
+{
+	if (!evobot_qw_human_capture_file)
+	{
+		Con_Printf("EvoBot human capture: not recording\n");
+		return;
+	}
+	Con_Printf("EvoBot human capture: slot %d, %u samples, %.3f seconds, %s\n",
+		evobot_qw_human_capture_slot, evobot_qw_human_capture_samples,
+		sv.time - evobot_qw_human_capture_start_time,
+		evobot_qw_human_capture_path);
+}
+
+void EvoBot_QW_RecordHumanCommand(int client_slot,
+	const struct usercmd_s *command)
+{
+	client_t *client;
+	edict_t *player;
+	edict_t *ground;
+	edict_t *near_entity = NULL;
+	evobot_vec3_t nav_origin;
+	uint32_t area = 0;
+	vec3_t wish_angles;
+	vec3_t forward;
+	vec3_t right;
+	vec3_t wish;
+	vec3_t trace_end;
+	trace_t trace;
+	float wish_length;
+	float near_distance = 99999.0f;
+	const char *ground_class = "";
+	const char *near_class = "";
+	const char *near_model = "";
+	const char *blocked_class = "";
+	int ground_entity = 0;
+	int blocked_entity = 0;
+	char record[2048];
+	int entity_index;
+
+	if (!evobot_qw_human_capture_file || !command ||
+		client_slot != evobot_qw_human_capture_slot ||
+		client_slot < 0 || client_slot >= MAX_CLIENTS)
+		return;
+	client = &svs.clients[client_slot];
+	player = client->edict;
+	if (!player || player->e.free || client->state != cs_spawned)
+	{
+		EvoBot_QW_HumanCaptureClose("player_left");
+		return;
+	}
+	EvoBot_QW_CopyVector(player->v->origin, &nav_origin);
+	EvoBot_NavDebugFindArea(&nav_origin, &area);
+	ground = PROG_TO_EDICT(player->v->groundentity);
+	if (ground && !ground->e.free)
+	{
+		ground_entity = ground->e.entnum;
+		ground_class = ground->v->classname ?
+			PR_GetEntityString(ground->v->classname) : "";
+	}
+	VectorSet(wish_angles, 0, command->angles[YAW], 0);
+	AngleVectors(wish_angles, forward, right, NULL);
+	wish[0] = forward[0] * command->forwardmove + right[0] * command->sidemove;
+	wish[1] = forward[1] * command->forwardmove + right[1] * command->sidemove;
+	wish[2] = 0;
+	wish_length = sqrtf(wish[0] * wish[0] + wish[1] * wish[1]);
+	VectorCopy(player->v->origin, trace_end);
+	memset(&trace, 0, sizeof(trace));
+	trace.fraction = 1.0f;
+	if (wish_length > 1.0f)
+	{
+		trace_end[0] += wish[0] / wish_length * 96.0f;
+		trace_end[1] += wish[1] / wish_length * 96.0f;
+		trace = SV_Trace(player->v->origin, player->v->mins,
+			player->v->maxs, trace_end, MOVE_NORMAL, player);
+		if (trace.e.ent && !trace.e.ent->e.free && trace.fraction < 1.0f)
+		{
+			blocked_entity = trace.e.ent->e.entnum;
+			blocked_class = trace.e.ent->v->classname ?
+				PR_GetEntityString(trace.e.ent->v->classname) : "";
+		}
+	}
+	for (entity_index = 1; entity_index < sv.num_edicts; entity_index++)
+	{
+		edict_t *entity = EDICT_NUM(entity_index);
+		float squared = 0;
+		int axis;
+
+		if (!entity || entity->e.free || entity == player ||
+			entity->v->solid == SOLID_NOT)
+			continue;
+		for (axis = 0; axis < 3; axis++)
+		{
+			float delta = player->v->origin[axis] < entity->v->absmin[axis] ?
+				entity->v->absmin[axis] - player->v->origin[axis] :
+				player->v->origin[axis] > entity->v->absmax[axis] ?
+				player->v->origin[axis] - entity->v->absmax[axis] : 0;
+			squared += delta * delta;
+		}
+		if (squared < near_distance * near_distance)
+		{
+			near_distance = sqrtf(squared);
+			near_entity = entity;
+		}
+	}
+	if (near_entity)
+	{
+		near_class = near_entity->v->classname ?
+			PR_GetEntityString(near_entity->v->classname) : "";
+		near_model = near_entity->v->model ?
+			PR_GetEntityString(near_entity->v->model) : "";
+	}
+	snprintf(record, sizeof(record),
+		"{\"type\":\"sample\",\"sample\":%u,\"map\":\"%s\","
+		"\"time\":%.6f,\"elapsed\":%.6f,\"msec\":%u,"
+		"\"origin\":[%.3f,%.3f,%.3f],\"velocity\":[%.3f,%.3f,%.3f],"
+		"\"view\":[%.3f,%.3f],\"cmd\":[%d,%d,%d],"
+		"\"buttons\":%u,\"impulse\":%u,\"area\":%u,"
+		"\"onground\":%d,\"waterlevel\":%d,\"health\":%.1f,"
+		"\"test_notarget\":%d,"
+		"\"ground_entity\":%d,\"ground_class\":\"%s\","
+		"\"wish_direction\":[%.4f,%.4f],\"wish_speed\":%.1f,"
+		"\"blocked_fraction\":%.4f,\"blocked_entity\":%d,"
+		"\"blocked_class\":\"%s\",\"near_entity\":%d,"
+		"\"near_class\":\"%s\",\"near_model\":\"%s\","
+		"\"near_distance\":%.3f,"
+		"\"near_bounds\":[%.3f,%.3f,%.3f,%.3f,%.3f,%.3f],"
+		"\"near_velocity\":[%.3f,%.3f,%.3f]}\n",
+		evobot_qw_human_capture_samples, sv.mapname, sv.time,
+		sv.time - evobot_qw_human_capture_start_time, command->msec,
+		player->v->origin[0], player->v->origin[1], player->v->origin[2],
+		player->v->velocity[0], player->v->velocity[1], player->v->velocity[2],
+		command->angles[YAW], command->angles[PITCH], command->forwardmove,
+		command->sidemove, command->upmove, command->buttons, command->impulse,
+		area, ((int)player->v->flags & FL_ONGROUND) != 0,
+		(int)player->v->waterlevel, player->v->health,
+		((int)player->v->flags & FL_NOTARGET) != 0,
+		ground_entity, ground_class,
+		wish_length > 1.0f ? wish[0] / wish_length : 0,
+		wish_length > 1.0f ? wish[1] / wish_length : 0, wish_length,
+		trace.fraction, blocked_entity, blocked_class,
+		near_entity ? near_entity->e.entnum : 0, near_class, near_model,
+		near_distance,
+		near_entity ? near_entity->v->absmin[0] : 0,
+		near_entity ? near_entity->v->absmin[1] : 0,
+		near_entity ? near_entity->v->absmin[2] : 0,
+		near_entity ? near_entity->v->absmax[0] : 0,
+		near_entity ? near_entity->v->absmax[1] : 0,
+		near_entity ? near_entity->v->absmax[2] : 0,
+		near_entity ? near_entity->v->velocity[0] : 0,
+		near_entity ? near_entity->v->velocity[1] : 0,
+		near_entity ? near_entity->v->velocity[2] : 0);
+	if (!EvoBot_QW_HumanCaptureWrite(record))
+	{
+		EvoBot_QW_HumanCaptureClose("write_failed");
+		return;
+	}
+	evobot_qw_human_capture_samples++;
+}
+
 static void EvoBot_QW_Add_f(void)
 {
 	if (Cmd_Argc() != 2 || !Cmd_Argv(1)[0])
@@ -1209,6 +1585,7 @@ static void EvoBot_QW_Remove_f(void)
 static void EvoBot_QW_ExecPrintSnapshot(const evobot_exec_snapshot_t *s,
 	const char *prefix)
 {
+	sv_bot_timing_stats_t bot_timing;
 	const char *near_trigger_class = "";
 	vec3_t near_trigger_mins = {0, 0, 0};
 	vec3_t near_trigger_maxs = {0, 0, 0};
@@ -1277,6 +1654,7 @@ static void EvoBot_QW_ExecPrintSnapshot(const evobot_exec_snapshot_t *s,
 			VectorCopy(entity->v->absmax, near_trigger_maxs);
 		}
 	}
+	SV_GetBotTimingStats(&bot_timing);
 	Con_Printf("%s{\"map\":\"%s\",\"time\":%.6f,\"bot\":\"%s\","
 		"\"handle\":%u,\"state\":\"%s\",\"event\":\"%s\","
 		"\"event_sequence\":%" PRIu64 ",\"origin\":[%.3f,%.3f,%.3f],"
@@ -1307,6 +1685,14 @@ static void EvoBot_QW_ExecPrintSnapshot(const evobot_exec_snapshot_t *s,
 		"\"replans\":%u,\"stuck_detections\":%u,\"traversal_retries\":%u,"
 		"\"jumps_attempted\":%u,\"jumps_succeeded\":%u,"
 		"\"reachabilities_completed\":%u,\"invalid_area_frames\":%u,"
+		"\"planner_calls\":%u,\"planner_last_seconds\":%.6f,"
+		"\"planner_total_seconds\":%.6f,\"planner_max_seconds\":%.6f,"
+		"\"planner_route_field_seconds\":%.6f,"
+		"\"planner_shoot_trace_seconds\":%.6f,"
+		"\"route_refreshes\":%u,\"recovery_replans\":%u,"
+		"\"planned_continuations\":%u,"
+		"\"bot_backlog_seconds\":%.6f,\"bot_dropped_seconds\":%.6f,"
+		"\"bot_max_elapsed_seconds\":%.6f,\"bot_hitch_clamps\":%u,"
 		"\"test_notarget\":%d}\n",
 		prefix, sv.mapname, s->server_time, s->name, s->handle,
 		EvoBot_ExecStateName(s->state), EvoBot_ExecEventName(s->event),
@@ -1344,6 +1730,12 @@ static void EvoBot_QW_ExecPrintSnapshot(const evobot_exec_snapshot_t *s,
 		s->stuck_detections, s->traversal_retries, s->jumps_attempted,
 		s->jumps_succeeded, s->reachabilities_completed,
 		s->invalid_area_frames,
+		s->planner_calls, s->planner_last_seconds, s->planner_total_seconds,
+		s->planner_max_seconds, s->planner_route_field_seconds,
+		s->planner_shoot_trace_seconds, s->route_refreshes,
+		s->recovery_replans, s->planned_continuations,
+		bot_timing.backlog_seconds, bot_timing.dropped_seconds,
+		bot_timing.maximum_elapsed_seconds, bot_timing.hitch_clamps,
 		client_slot >= 0 &&
 		((int)svs.clients[client_slot].edict->v->flags &
 		 FL_NOTARGET) != 0);
@@ -1359,8 +1751,11 @@ static void EvoBot_QW_ExecStart_f(void)
 	if (!EvoBot_ExecStart(Cmd_Argv(1)))
 		Con_Printf("EvoBot execution: bot '%s' not found\n", Cmd_Argv(1));
 	else
+	{
+		SV_ResetBotTimingStats();
 		Con_Printf("EvoBot execution started: %s (test isolation: notarget)\n",
 			Cmd_Argv(1));
+	}
 }
 
 static void EvoBot_QW_ExecStop_f(void)
@@ -1942,6 +2337,9 @@ void EvoBot_QW_Init(void)
 	Cmd_AddCommand("evobot_exec_history", EvoBot_QW_ExecHistory_f);
 	Cmd_AddCommand("evobot_test_e1m1", EvoBot_QW_TestE1M1_f);
 	Cmd_AddCommand("evobot_exec_map", EvoBot_QW_ExecMap_f);
+	Cmd_AddCommand("evobot_human_record_start", EvoBot_QW_HumanCaptureStart_f);
+	Cmd_AddCommand("evobot_human_record_stop", EvoBot_QW_HumanCaptureStop_f);
+	Cmd_AddCommand("evobot_human_record_status", EvoBot_QW_HumanCaptureStatus_f);
 	Cmd_AddCommand("evobot_nav_generate", EvoBot_QW_NavGenerate_f);
 	Cmd_AddCommand("evobot_nav_status", EvoBot_QW_NavStatus_f);
 	Cmd_AddCommand("evobot_nav_reach_status", EvoBot_QW_NavReachStatus_f);
@@ -2066,6 +2464,7 @@ void EvoBot_QW_PrepareBotCommands(double frame_time)
 
 void EvoBot_QW_MapCleared(void)
 {
+	EvoBot_QW_HumanCaptureClose("map_cleared");
 	if (!evobot_qw_initialized || !evobot_qw_map_loaded)
 		return;
 
