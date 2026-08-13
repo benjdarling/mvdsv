@@ -1,0 +1,35 @@
+# CMake generation dependency list for this directory.
+C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeCInformation.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeCommonLanguageInclude.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeGenericSystem.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeInitializeConfigs.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeLanguageInformation.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeRCInformation.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeSystemSpecificInformation.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeSystemSpecificInitialize.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/CheckCSourceCompiles.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/CheckIncludeFile.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/CheckLibraryExists.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Compiler/CMakeCommonCompilerMacros.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Compiler/MSVC-C.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Compiler/MSVC.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/FindGit.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/FindPackageHandleStandardArgs.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/FindPackageMessage.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/FindThreads.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Internal/CMakeCLinkerInformation.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Internal/CMakeCommonLinkerInformation.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Internal/CheckSourceCompiles.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Linker/MSVC-C.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Linker/MSVC.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Platform/Linker/Windows-MSVC-C.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Platform/Linker/Windows-MSVC.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Platform/Windows-Initialize.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Platform/Windows-MSVC-C.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Platform/Windows-MSVC.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Platform/Windows.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Platform/WindowsPaths.cmake
+K:/development/EvoBot/mvdsv/CMakeLists.txt
+K:/development/EvoBot/mvdsv/build-live-fix/CMakeFiles/4.3.2/CMakeCCompiler.cmake
+K:/development/EvoBot/mvdsv/build-live-fix/CMakeFiles/4.3.2/CMakeRCCompiler.cmake
+K:/development/EvoBot/mvdsv/build-live-fix/CMakeFiles/4.3.2/CMakeSystem.cmake

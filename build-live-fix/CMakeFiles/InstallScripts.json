@@ -1,0 +1,8 @@
+{
+	"InstallScripts" : 
+	[
+		"K:/development/EvoBot/mvdsv/build-live-fix/cmake_install.cmake",
+		"K:/development/EvoBot/mvdsv/build-live-fix/external/evobot/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

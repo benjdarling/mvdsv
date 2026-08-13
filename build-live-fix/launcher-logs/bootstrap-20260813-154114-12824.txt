@@ -1,0 +1,4 @@
+EvoBot execution did not start.
+At K:\development\EvoBot\mvdsv\tools\run-evobot-mvdsv.ps1:348 char:9
++         throw "EvoBot execution did not start."
++         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

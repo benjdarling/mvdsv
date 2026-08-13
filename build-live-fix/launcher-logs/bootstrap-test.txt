@@ -1,0 +1,4 @@
+Spectator 'EvoBotCam' did not connect within 60 seconds.
+At K:\development\EvoBot\mvdsv\tools\run-evobot-mvdsv.ps1:325 char:13
++             throw "Spectator '$WaitForSpectator' did not connect with ...
++             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

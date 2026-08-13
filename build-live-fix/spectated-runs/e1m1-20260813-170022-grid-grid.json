@@ -1,0 +1,36 @@
+{
+  "grid_size": 256,
+  "row_1_is_north": true,
+  "world_bounds": {
+    "x_min": 256,
+    "x_max": 768,
+    "y_min": -256,
+    "y_max": 256
+  },
+  "cells": {
+    "A1": {
+      "x_min": 256,
+      "x_max": 512,
+      "y_min": 0,
+      "y_max": 256
+    },
+    "B1": {
+      "x_min": 512,
+      "x_max": 768,
+      "y_min": 0,
+      "y_max": 256
+    },
+    "A2": {
+      "x_min": 256,
+      "x_max": 512,
+      "y_min": -256,
+      "y_max": 0
+    },
+    "B2": {
+      "x_min": 512,
+      "x_max": 768,
+      "y_min": -256,
+      "y_max": 0
+    }
+  }
+}

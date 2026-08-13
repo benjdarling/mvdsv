@@ -1,0 +1,66 @@
+EvoBot plan to exit
+plan search depth 0 area 1464 wanted 3 candidates 4/2
+plan search depth 0 area 1464 wanted 3 candidates 4/2
+plan search depth 0 area 1464 wanted 3 candidates 4/2 50/1 49/1
+plan closure: wanted interactor 3, selected 4 at area 1411
+plan closure: dependency 23 unactionable, trying alternate-path dependency 39
+plan closure: dependency 39 unactionable, trying alternate-path dependency 8
+plan closure: dependency 8 unactionable, trying alternate-path dependency 15
+plan closure stalled at interactor 15
+EvoBot plan status
+source area: 1464
+exit interactor: 47
+result: blocked
+subgoals: 1
+1. navigate to area 1411; activate interactor 4 func_button (touch); state change interactor 3 door
+inventory state: silver no, gold no (0x00000000)
+strongest unresolved dependency: interactor 0: no proven reachable activation sequence
+estimated navigation cost: 6.013 s
+estimated dynamic wait: 2.320 s
+world states searched: 15
+timed states evaluated: 13
+counter states evaluated: 0
+duplicate states pruned: 0
+budget/depth states pruned: 1
+maximum active DFS depth: 3
+item pickups: 0
+key unlocks: 0
+deepest dependency chain: 1
+plan calculation time: 1.372155 s
+route fields: 103 (0.389741 s); shoot traces: 0 (0.000000 s), cache hits: 0
+
+EvoBot plan dump
+static route: blocked
+gameplay source: 4 button/func_button target 't1' current 1411 hypothetical 1411
+gameplay source: 9 button/func_button target 't2' current 0 hypothetical 437
+gameplay source: 11 trigger/trigger_once target 't3' current 0 hypothetical 777
+gameplay source: 16 trigger/trigger_multiple target 't4' current 0 hypothetical 750
+gameplay source: 18 trigger/trigger_once target 't5' current 0 hypothetical 524
+gameplay source: 19 button/func_button target 't1' current 0 hypothetical 1394
+gameplay source: 24 trigger/trigger_multiple target 't8' current 0 hypothetical 1150
+gameplay source: 26 button/func_button target 't9' current 0 hypothetical 192
+gameplay source: 27 button/func_button target 't9' current 0 hypothetical 72
+gameplay source: 28 button/func_button target 't9' current 0 hypothetical 633
+gameplay source: 31 trigger/trigger_once target 't11' current 0 hypothetical 611
+gameplay source: 32 trigger/trigger_once target 't12' current 0 hypothetical 238
+gameplay source: 33 trigger/trigger_once target 't13' current 0 hypothetical 298
+gameplay source: 34 trigger/trigger_once target 't14' current 0 hypothetical 156
+gameplay source: 40 trigger/trigger_once target 't15' current 0 hypothetical 1011
+gameplay source: 43 trigger/trigger_multiple target 't18' current 0 hypothetical 469
+gameplay source: 49 trigger/trigger_once target 't31' current 1249 hypothetical 1249
+gameplay source: 50 trigger/trigger_once target 't32' current 1326 hypothetical 1326
+blocker 1: route step 18 reachability 7906 areas 1149->1236 interactor 23
+dependency depth 0: interactor 23 door/door activation external targetname 't8'
+dependency edge: 24 trigger/trigger_multiple --touch--> 23 target 't8' reachable current 0 hypothetical 1150
+blocker 2: route step 29 reachability 2122 areas 1154->1016 interactor 39
+dependency depth 0: interactor 39 door/door activation external targetname 't15'
+dependency edge: 40 trigger/trigger_once --touch--> 39 target 't15' reachable current 0 hypothetical 1011
+blocker 3: route step 30 reachability 2120 areas 1016->1015 interactor 21
+dependency depth 0: interactor 21 door/door activation shoot targetname ''
+logic chain: interactor 29 trigger_counter target 't10' targetname 't9'
+dependency depth 0: interactor 29 logic/trigger_counter activation external targetname 't9'
+dependency edge: 26 button/func_button --touch--> 29 target 't9' reachable current 0 hypothetical 192
+dependency edge: 27 button/func_button --touch--> 29 target 't9' reachable current 0 hypothetical 72
+dependency edge: 28 button/func_button --touch--> 29 target 't9' reachable current 0 hypothetical 633
+logic continuation: 29 --external--> 30 door/door
+deepest proven point: hypothetical exit path; blocker chain entries: 3

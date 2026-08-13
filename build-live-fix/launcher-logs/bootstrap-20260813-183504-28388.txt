@@ -1,0 +1,4 @@
+MVDSV exited with code .
+At K:\development\EvoBot\mvdsv\tools\run-evobot-mvdsv.ps1:383 char:9
++         throw "MVDSV exited with code $($process.ExitCode)."
++         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

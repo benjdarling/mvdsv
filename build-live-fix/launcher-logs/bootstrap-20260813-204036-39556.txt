@@ -1,0 +1,4 @@
+EvoBot execution did not start. evobot_exec_start response: Bad rcon_password.
+At K:\development\EvoBot\mvdsv\tools\run-evobot-mvdsv.ps1:376 char:9
++         throw "EvoBot execution did not start. evobot_exec_start resp ...
++         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

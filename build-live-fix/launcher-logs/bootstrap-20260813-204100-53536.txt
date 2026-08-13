@@ -1,0 +1,4 @@
+No exit route could be selected for the bot.
+At K:\development\EvoBot\mvdsv\tools\run-evobot-mvdsv.ps1:287 char:9
++         throw "No exit route could be selected for the bot."
++         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

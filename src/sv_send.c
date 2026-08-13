@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifndef CLIENTONLY
 #include "qwsvdef.h"
+#include "evobot_qw_adapter.h"
 
 static void SV_BotWriteDamage(client_t* c, int i);
 
@@ -656,6 +657,8 @@ void SV_StartSound (edict_t *entity, int channel, char *sample, int volume, floa
 	{
 		VectorCopy (entity->v->origin, origin);
 	}
+
+	EvoBot_QW_ObserveSound(ent, origin, sample);
 
 	MSG_WriteByte (&sv.multicast, svc_sound);
 	MSG_WriteShort (&sv.multicast, channel);

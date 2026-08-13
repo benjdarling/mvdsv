@@ -7,6 +7,8 @@
 
 static const char *EvoBot_QW_TravelTypeName(evobot_nav_travel_type_t type);
 static int EvoBot_QW_FindClientSlot(evobot_client_handle_t handle);
+static void EvoBot_QW_CopyVector(const vec3_t source,
+	evobot_vec3_t *destination);
 
 static evobot_host_api_t evobot_qw_host;
 static int evobot_qw_initialized;
@@ -15,6 +17,10 @@ static evobot_client_handle_t evobot_qw_client_handles[MAX_CLIENTS];
 static evobot_client_handle_t evobot_qw_next_client_handle = 1;
 static double evobot_qw_command_msec_remainder;
 static int evobot_qw_exec_debug;
+static double evobot_qw_command_last_seconds[MAX_CLIENTS];
+static double evobot_qw_command_max_seconds[MAX_CLIENTS];
+static double evobot_qw_command_total_seconds[MAX_CLIENTS];
+static unsigned int evobot_qw_command_slow_calls[MAX_CLIENTS];
 static vfsfile_t *evobot_qw_human_capture_file;
 static int evobot_qw_human_capture_slot = -1;
 static unsigned int evobot_qw_human_capture_samples;
@@ -35,6 +41,74 @@ static size_t evobot_qw_entity_cache_count;
 static void EvoBot_QW_Print(const char *message)
 {
 	Con_Printf("%s", message);
+}
+
+static int EvoBot_QW_StringContains(const char *text, const char *needle)
+{
+	return text && needle && strstr(text, needle) != NULL;
+}
+
+void EvoBot_QW_ObserveSound(int entity_number, const float origin[3],
+	const char *sample)
+{
+	evobot_attention_kind_t kind = EVOBOT_ATTENTION_PLAYER_SOUND;
+	evobot_client_handle_t source = EVOBOT_CLIENT_HANDLE_INVALID;
+	evobot_vec3_t point;
+	edict_t *entity;
+	const char *classname = "";
+	int player_sound;
+
+	if (!evobot_qw_initialized || !evobot_qw_map_loaded || !deathmatch.value ||
+		!origin || entity_number < 0 || entity_number >= sv.num_edicts)
+		return;
+	entity = EDICT_NUM(entity_number);
+	if (!entity || entity->e.free)
+		return;
+	if (entity->v->classname)
+		classname = PR_GetEntityString(entity->v->classname);
+	player_sound = entity_number >= 1 && entity_number <= MAX_CLIENTS &&
+		svs.clients[entity_number - 1].state == cs_spawned;
+	if (player_sound)
+		source = evobot_qw_client_handles[entity_number - 1];
+	else if (EvoBot_QW_StringContains(sample, "r_exp") ||
+		EvoBot_QW_StringContains(sample, "explode") ||
+		EvoBot_QW_StringContains(sample, "rocket"))
+		kind = EVOBOT_ATTENTION_EXPLOSION;
+	else if (!strncmp(classname, "item_", 5) ||
+		!strncmp(classname, "weapon_", 7))
+		kind = EVOBOT_ATTENTION_PICKUP_SOUND;
+	else
+		return;
+	point.v[0] = origin[0];
+	point.v[1] = origin[1];
+	point.v[2] = origin[2];
+	EvoBot_ObserveAttention(kind, source, &point);
+	if (player_sound &&
+		(EvoBot_QW_StringContains(sample, "death") ||
+		 EvoBot_QW_StringContains(sample, "gib")))
+	{
+		int i;
+		EvoBot_ObserveAttention(EVOBOT_ATTENTION_PLAYER_DEATH, source, &point);
+		/* A heard death makes all authored DM spawns temporarily interesting.
+		 * Visibility/portal scoring decides which one is sensible to watch. */
+		for (i = MAX_CLIENTS + 1; i < sv.num_edicts; i++)
+		{
+			edict_t *spawn_entity = EDICT_NUM(i);
+			const char *spawn_class;
+
+			if (!spawn_entity || spawn_entity->e.free ||
+				!spawn_entity->v->classname)
+				continue;
+			spawn_class = PR_GetEntityString(spawn_entity->v->classname);
+			if (!strcmp(spawn_class, "info_player_deathmatch"))
+			{
+				evobot_vec3_t spawn_point;
+				EvoBot_QW_CopyVector(spawn_entity->v->origin, &spawn_point);
+				EvoBot_ObserveAttention(EVOBOT_ATTENTION_PLAYER_RESPAWN,
+					source, &spawn_point);
+			}
+		}
+	}
 }
 
 static double EvoBot_QW_ServerTime(void)
@@ -102,6 +176,59 @@ static int EvoBot_QW_TracePlayerWorld(const evobot_vec3_t *start,
 	result->normal.v[2] = trace.plane.normal[2];
 	result->hit_dynamic = 0;
 	return 1;
+}
+
+static int EvoBot_QW_TraceLineWorld(const evobot_vec3_t *start,
+	const evobot_vec3_t *end, evobot_trace_t *result)
+{
+	vec3_t trace_start;
+	vec3_t trace_end;
+	trace_t trace;
+
+	if (!start || !end || !result || sv.state != ss_active || !sv.worldmodel)
+		return 0;
+	VectorSet(trace_start, start->v[0], start->v[1], start->v[2]);
+	VectorSet(trace_end, end->v[0], end->v[1], end->v[2]);
+	trace = SV_ClipMoveToEntity(EDICT_NUM(0), NULL, trace_start,
+		vec3_origin, vec3_origin, trace_end);
+	memset(result, 0, sizeof(*result));
+	result->all_solid = trace.allsolid;
+	result->start_solid = trace.startsolid;
+	result->fraction = trace.fraction;
+	EvoBot_QW_CopyVector(trace.endpos, &result->end);
+	result->normal.v[0] = trace.plane.normal[0];
+	result->normal.v[1] = trace.plane.normal[1];
+	result->normal.v[2] = trace.plane.normal[2];
+	return 1;
+}
+
+static int EvoBot_QW_AttentionAudible(evobot_client_handle_t handle,
+	const evobot_vec3_t *origin)
+{
+	int slot = EvoBot_QW_FindClientSlot(handle);
+	vec3_t sound_origin;
+	vec3_t view_origin;
+	vec3_t delta;
+	byte *mask;
+	int leaf_number;
+
+	if (slot < 0 || !origin || svs.clients[slot].state != cs_spawned ||
+		!svs.clients[slot].edict)
+		return 0;
+	VectorSet(sound_origin, origin->v[0], origin->v[1], origin->v[2]);
+	VectorAdd(svs.clients[slot].edict->v->origin,
+		svs.clients[slot].edict->v->view_ofs, view_origin);
+	VectorSubtract(sound_origin, view_origin, delta);
+	if (VectorLength(delta) <= 1024.0f)
+		return 1;
+	mask = CM_LeafPHS(CM_PointInLeaf(sound_origin));
+	if (!mask)
+		return 1;
+	leaf_number = CM_Leafnum(CM_PointInLeaf(view_origin));
+	if (!leaf_number)
+		return 1;
+	leaf_number--;
+	return (mask[leaf_number >> 3] & (1 << (leaf_number & 7))) != 0;
 }
 
 static int EvoBot_QW_TracePlayerSolids(evobot_client_handle_t handle,
@@ -1660,6 +1787,7 @@ static void EvoBot_QW_ExecPrintSnapshot(const evobot_exec_snapshot_t *s,
 		"\"event_sequence\":%" PRIu64 ",\"origin\":[%.3f,%.3f,%.3f],"
 		"\"velocity\":[%.3f,%.3f,%.3f],\"view\":[%.3f,%.3f],"
 		"\"area\":%u,\"route_length\":%zu,\"route_index\":%zu,"
+		"\"journey_length\":%zu,\"journey_index\":%zu,"
 		"\"plan_count\":%zu,\"plan_index\":%zu,\"subgoal_active\":%d,"
 		"\"subgoal_action\":%d,\"subgoal_area\":%u,"
 		"\"subgoal_activator\":%u,\"subgoal_affected\":%u,"
@@ -1674,7 +1802,15 @@ static void EvoBot_QW_ExecPrintSnapshot(const evobot_exec_snapshot_t *s,
 		"\"blocked_model\":\"%s\",\"blocked_fraction\":%.3f,"
 		"\"near_trigger\":\"%s\",\"near_trigger_distance\":%.3f,"
 		"\"near_trigger_bounds\":[%.3f,%.3f,%.3f,%.3f,%.3f,%.3f],"
-		"\"steering_target\":[%.3f,%.3f,%.3f],\"target_distance\":%.3f,"
+		"\"steering_target\":[%.3f,%.3f,%.3f],"
+		"\"look_target\":[%.3f,%.3f,%.3f],\"look_urgency\":%.3f,"
+		"\"target_distance\":%.3f,"
+		"\"avoidance_active\":%d,\"avoidance_side\":%d,"
+		"\"avoidance_entity\":%d,\"avoidance_target\":[%.3f,%.3f,%.3f],"
+		"\"avoidance_probe_actor\":%d,\"avoidance_probe_entity\":%d,"
+		"\"avoidance_probe_fraction\":%.3f,"
+		"\"avoidance_probe_bounds\":[%.3f,%.3f,%.3f,%.3f,%.3f,%.3f],"
+		"\"avoidance_corridor_stage\":%d,"
 		"\"desired_direction\":[%.4f,%.4f,%.4f],\"keys\":%u,"
 		"\"forwardmove\":%.1f,\"sidemove\":%.1f,\"upmove\":%.1f,"
 		"\"buttons\":%u,\"impulse\":%u,\"weapon\":%.0f,"
@@ -1691,6 +1827,8 @@ static void EvoBot_QW_ExecPrintSnapshot(const evobot_exec_snapshot_t *s,
 		"\"planner_shoot_trace_seconds\":%.6f,"
 		"\"route_refreshes\":%u,\"recovery_replans\":%u,"
 		"\"planned_continuations\":%u,"
+		"\"command_last_seconds\":%.6f,\"command_max_seconds\":%.6f,"
+		"\"command_total_seconds\":%.6f,\"command_slow_calls\":%u,"
 		"\"bot_backlog_seconds\":%.6f,\"bot_dropped_seconds\":%.6f,"
 		"\"bot_max_elapsed_seconds\":%.6f,\"bot_hitch_clamps\":%u,"
 		"\"test_notarget\":%d}\n",
@@ -1701,6 +1839,7 @@ static void EvoBot_QW_ExecPrintSnapshot(const evobot_exec_snapshot_t *s,
 		s->player.velocity.v[0], s->player.velocity.v[1], s->player.velocity.v[2],
 		s->player.view_angles.v[1], s->player.view_angles.v[0],
 		s->current_area, s->route_length, s->route_index,
+		s->journey_length, s->journey_index,
 		s->plan_count, s->plan_index, s->subgoal_active,
 		(int)s->subgoal_action, s->subgoal_area, s->subgoal_activator,
 		s->subgoal_affected,
@@ -1718,7 +1857,18 @@ static void EvoBot_QW_ExecPrintSnapshot(const evobot_exec_snapshot_t *s,
 		near_trigger_mins[0], near_trigger_mins[1], near_trigger_mins[2],
 		near_trigger_maxs[0], near_trigger_maxs[1], near_trigger_maxs[2],
 		s->steering_target.v[0], s->steering_target.v[1], s->steering_target.v[2],
-		s->target_distance, s->desired_direction.v[0],
+		s->look_target.v[0], s->look_target.v[1], s->look_target.v[2],
+		s->look_urgency,
+		s->target_distance, s->avoidance_active, s->avoidance_side,
+		s->avoidance_entity, s->avoidance_target.v[0],
+		s->avoidance_target.v[1], s->avoidance_target.v[2],
+		s->avoidance_probe_actor, s->avoidance_probe_entity,
+		s->avoidance_probe_fraction,
+		s->avoidance_probe_bounds.mins.v[0], s->avoidance_probe_bounds.mins.v[1],
+		s->avoidance_probe_bounds.mins.v[2], s->avoidance_probe_bounds.maxs.v[0],
+		s->avoidance_probe_bounds.maxs.v[1], s->avoidance_probe_bounds.maxs.v[2],
+		s->avoidance_corridor_stage,
+		s->desired_direction.v[0],
 		s->desired_direction.v[1], s->desired_direction.v[2], s->input.keys,
 		s->input.forward_move, s->input.side_move, s->input.up_move,
 		s->input.buttons, s->input.impulse, weapon,
@@ -1734,6 +1884,10 @@ static void EvoBot_QW_ExecPrintSnapshot(const evobot_exec_snapshot_t *s,
 		s->planner_max_seconds, s->planner_route_field_seconds,
 		s->planner_shoot_trace_seconds, s->route_refreshes,
 		s->recovery_replans, s->planned_continuations,
+		client_slot >= 0 ? evobot_qw_command_last_seconds[client_slot] : 0,
+		client_slot >= 0 ? evobot_qw_command_max_seconds[client_slot] : 0,
+		client_slot >= 0 ? evobot_qw_command_total_seconds[client_slot] : 0,
+		client_slot >= 0 ? evobot_qw_command_slow_calls[client_slot] : 0,
 		bot_timing.backlog_seconds, bot_timing.dropped_seconds,
 		bot_timing.maximum_elapsed_seconds, bot_timing.hitch_clamps,
 		client_slot >= 0 &&
@@ -1752,10 +1906,31 @@ static void EvoBot_QW_ExecStart_f(void)
 		Con_Printf("EvoBot execution: bot '%s' not found\n", Cmd_Argv(1));
 	else
 	{
+		memset(evobot_qw_command_last_seconds, 0,
+			sizeof(evobot_qw_command_last_seconds));
+		memset(evobot_qw_command_max_seconds, 0,
+			sizeof(evobot_qw_command_max_seconds));
+		memset(evobot_qw_command_total_seconds, 0,
+			sizeof(evobot_qw_command_total_seconds));
+		memset(evobot_qw_command_slow_calls, 0,
+			sizeof(evobot_qw_command_slow_calls));
 		SV_ResetBotTimingStats();
 		Con_Printf("EvoBot execution started: %s (test isolation: notarget)\n",
 			Cmd_Argv(1));
 	}
+}
+
+static void EvoBot_QW_ExecPrepare_f(void)
+{
+	if (Cmd_Argc() != 2 || !Cmd_Argv(1)[0])
+	{
+		Con_Printf("usage: evobot_exec_prepare <bot name>\n");
+		return;
+	}
+	if (!EvoBot_ExecPrepare(Cmd_Argv(1)))
+		Con_Printf("EvoBot execution: bot '%s' not found\n", Cmd_Argv(1));
+	else
+		Con_Printf("EvoBot execution prepared: %s\n", Cmd_Argv(1));
 }
 
 static void EvoBot_QW_ExecStop_f(void)
@@ -1854,6 +2029,39 @@ static void EvoBot_QW_ExecHistory_f(void)
 	for (index = 0; index < count; index++)
 		if (EvoBot_ExecHistory(Cmd_Argv(1), index, &snapshot))
 			EvoBot_QW_ExecPrintSnapshot(&snapshot, "EVOBOT_EXEC_HISTORY_JSON ");
+}
+
+static void EvoBot_QW_ExecRoute_f(void)
+{
+	size_t index;
+	evobot_nav_route_step_t step;
+	evobot_nav_reachability_t reach;
+
+	if (Cmd_Argc() != 2 || !Cmd_Argv(1)[0])
+	{
+		Con_Printf("usage: evobot_exec_route <bot name>\n");
+		return;
+	}
+	for (index = 0; index < EVOBOT_EXEC_ROUTE_MAX; index++)
+	{
+		if (!EvoBot_ExecRouteStep(Cmd_Argv(1), index, &step, &reach))
+			break;
+		Con_Printf("EVOBOT_EXEC_ROUTE %u reach %u type %s area %u -> %u "
+			"start [%.2f %.2f %.2f]-[%.2f %.2f %.2f] "
+			"dest [%.2f %.2f %.2f]-[%.2f %.2f %.2f] height %.2f "
+			"flags %u portal %u dynamic %u\n",
+			(unsigned int)index, reach.id,
+			EvoBot_QW_TravelTypeName(reach.travel_type),
+			step.source_area, step.destination_area,
+			reach.start.start.v[0], reach.start.start.v[1], reach.start.start.v[2],
+			reach.start.end.v[0], reach.start.end.v[1], reach.start.end.v[2],
+			reach.destination.start.v[0], reach.destination.start.v[1],
+			reach.destination.start.v[2], reach.destination.end.v[0],
+			reach.destination.end.v[1], reach.destination.end.v[2],
+			reach.height_delta, reach.flags, reach.portal_id,
+			reach.dynamic_interactor);
+	}
+	Con_Printf("EVOBOT_EXEC_ROUTE_COUNT %u\n", (unsigned int)index);
 }
 
 static void EvoBot_QW_TestE1M1_f(void)
@@ -2311,6 +2519,8 @@ void EvoBot_QW_Init(void)
 	evobot_qw_host.world_bounds = EvoBot_QW_WorldBounds;
 	evobot_qw_host.player_bounds = EvoBot_QW_PlayerBounds;
 	evobot_qw_host.trace_player_world = EvoBot_QW_TracePlayerWorld;
+	evobot_qw_host.trace_line_world = EvoBot_QW_TraceLineWorld;
+	evobot_qw_host.attention_audible = EvoBot_QW_AttentionAudible;
 	evobot_qw_host.trace_player_solids = EvoBot_QW_TracePlayerSolids;
 	evobot_qw_host.point_contents = EvoBot_QW_PointContents;
 	evobot_qw_host.player_physics = EvoBot_QW_PlayerPhysics;
@@ -2330,11 +2540,13 @@ void EvoBot_QW_Init(void)
 	Cmd_AddCommand("evobot_version", EvoBot_QW_Version_f);
 	Cmd_AddCommand("evobot_add", EvoBot_QW_Add_f);
 	Cmd_AddCommand("evobot_remove", EvoBot_QW_Remove_f);
+	Cmd_AddCommand("evobot_exec_prepare", EvoBot_QW_ExecPrepare_f);
 	Cmd_AddCommand("evobot_exec_start", EvoBot_QW_ExecStart_f);
 	Cmd_AddCommand("evobot_exec_stop", EvoBot_QW_ExecStop_f);
 	Cmd_AddCommand("evobot_exec_status", EvoBot_QW_ExecStatus_f);
 	Cmd_AddCommand("evobot_exec_debug", EvoBot_QW_ExecDebug_f);
 	Cmd_AddCommand("evobot_exec_history", EvoBot_QW_ExecHistory_f);
+	Cmd_AddCommand("evobot_exec_route", EvoBot_QW_ExecRoute_f);
 	Cmd_AddCommand("evobot_test_e1m1", EvoBot_QW_TestE1M1_f);
 	Cmd_AddCommand("evobot_exec_map", EvoBot_QW_ExecMap_f);
 	Cmd_AddCommand("evobot_human_record_start", EvoBot_QW_HumanCaptureStart_f);
@@ -2429,6 +2641,9 @@ void EvoBot_QW_PrepareBotCommands(double frame_time)
 		{
 			evobot_exec_player_state_t player;
 			evobot_virtual_input_t input;
+			double command_started;
+			double command_elapsed;
+			int prepared;
 			memset(&player, 0, sizeof(player));
 			EvoBot_QW_CopyVector(client->edict->v->origin, &player.origin);
 			EvoBot_QW_CopyVector(client->edict->v->velocity, &player.velocity);
@@ -2439,8 +2654,17 @@ void EvoBot_QW_PrepareBotCommands(double frame_time)
 			player.movement_disabled =
 				(int)client->edict->v->movetype == MOVETYPE_NONE ||
 				(int)client->edict->v->solid == SOLID_NOT;
-			if (EvoBot_ExecPrepareCommand(evobot_qw_client_handles[i], &player,
-				frame_time, &input))
+			command_started = Sys_DoubleTime();
+			prepared = EvoBot_ExecPrepareCommand(evobot_qw_client_handles[i], &player,
+				frame_time, &input);
+			command_elapsed = Sys_DoubleTime() - command_started;
+			evobot_qw_command_last_seconds[i] = command_elapsed;
+			evobot_qw_command_total_seconds[i] += command_elapsed;
+			if (command_elapsed > evobot_qw_command_max_seconds[i])
+				evobot_qw_command_max_seconds[i] = command_elapsed;
+			if (command_elapsed >= 0.010)
+				evobot_qw_command_slow_calls[i]++;
+			if (prepared)
 			{
 				VectorSet(client->botcmd.angles, input.view_angles.v[0],
 					input.view_angles.v[1], input.view_angles.v[2]);

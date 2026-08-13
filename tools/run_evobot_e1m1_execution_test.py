@@ -129,6 +129,11 @@ def run_once(exe: Path, basedir: Path, root: Path, run_number: int,
         plan_status = rcon(port, password, "evobot_nav_plan_exit", timeout=180.0)
         plan_text = rcon(port, password, "evobot_nav_plan_dump", timeout=5.0)
         plan_path.write_text(plan_status + "\n" + plan_text, encoding="utf-8")
+        prepare_output = rcon(
+            port, password, "evobot_exec_prepare e1m1bot", timeout=180.0)
+        if "execution prepared" not in prepare_output:
+            raise RuntimeError(
+                f"executor failed to prepare: {prepare_output.strip()}")
         start_output = rcon(port, password, "evobot_exec_start e1m1bot", timeout=2.0)
         if "execution started" not in start_output:
             raise RuntimeError(f"executor failed to start: {start_output.strip()}")

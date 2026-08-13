@@ -1,0 +1,128 @@
+EvoBot route to exit
+EvoBot route status
+source area: 1121
+destination area: 1121
+result: reachable
+cost: 0.000 s
+reachabilities: 0
+reachable routing areas: 662 / 792
+graph reachabilities: 7926
+dijkstra time: 0.000747 seconds
+cost/predecessor memory: 11744 bytes
+exit interactor: 47
+exit areas: 1
+sample costs from the same field:
+  area 46 (interactor 37): 4.261 s
+  area 199 (interactor 36): 4.591 s
+  area 408 (interactor 8): 5.324 s
+
+EvoBot route dump: no selected route
+
+EvoBot plan to exit
+EvoBot plan status
+source area: 177
+exit interactor: 47
+result: unreachable
+subgoals: 0
+inventory state: silver no, gold no (0x00000000)
+strongest unresolved dependency: interactor 0: no implemented reachability closes 1328.0-unit frontier gap
+estimated navigation cost: 0.000 s
+estimated dynamic wait: 0.000 s
+world states searched: 0
+timed states evaluated: 0
+counter states evaluated: 0
+duplicate states pruned: 0
+budget/depth states pruned: 0
+maximum active DFS depth: 0
+item pickups: 0
+key unlocks: 0
+deepest dependency chain: 0
+plan calculation time: 0.008384 s
+route fields: 0 (0.000000 s); shoot traces: 0 (0.000000 s), cache hits: 0
+
+EvoBot plan dump
+static route: unreachable
+physical frontier: area 177 portal 0 beyond area 0 interactor 26: no implemented reachability closes 1328.0-unit frontier gap
+logic chain: interactor 29 trigger_counter target 't10' targetname 't9'
+dependency depth 0: interactor 29 logic/trigger_counter activation external targetname 't9'
+dependency edge: 26 button/func_button --touch--> 29 target 't9' reachable current 0 hypothetical 0
+dependency edge: 27 button/func_button --touch--> 29 target 't9' reachable current 0 hypothetical 0
+dependency edge: 28 button/func_button --touch--> 29 target 't9' reachable current 0 hypothetical 0
+logic continuation: 29 --external--> 30 door/door
+deepest proven point: physical frontier; blocker chain entries: 0
+
+EvoBot interactor 3: door model *3 kind 0 activation 4 state 1 movement 1 health 0.0 wait 5.00 travel 2.32
+bounds [-65.00 511.00 -241.00]-[65.00 641.00 1.00] current [-65.00 511.00 -241.00]-[65.00 641.00 1.00]
+endpoint A [-65.00 511.00 -241.00]-[65.00 641.00 1.00] B [-65.00 511.00 -473.00]-[65.00 641.00 -231.00] target '' name 't1'
+
+EvoBot interactor 4: func_button model *4 kind 1 activation 2 state 1 movement 1 health 0.0 wait 1.00 travel 0.10
+bounds [-69.00 559.00 31.00]-[-59.00 593.00 65.00] current [-69.00 559.00 31.00]-[-59.00 593.00 65.00]
+endpoint A [-69.00 559.00 31.00]-[-59.00 593.00 65.00] B [-73.00 559.00 31.00]-[-63.00 593.00 65.00] target 't1' name ''
+
+EvoBot interactor 8: door model *8 kind 0 activation 4 state 2 movement 1 health 0.0 wait -1.00 travel 0.40
+bounds [-1.00 2391.00 -97.00]-[321.00 2641.00 -79.00] current [-1.00 2631.00 -97.00]-[321.00 2881.00 -79.00]
+endpoint A [-1.00 2391.00 -97.00]-[321.00 2641.00 -79.00] B [-1.00 2631.00 -97.00]-[321.00 2881.00 -79.00] target '' name 't2'
+
+EvoBot interactor 9: func_button model *9 kind 1 activation 2 state 2 movement 1 health 0.0 wait -1.00 travel 0.08
+bounds [-65.00 2655.00 -49.00]-[-31.00 2665.00 -15.00] current [-65.00 2651.00 -49.00]-[-31.00 2661.00 -15.00]
+endpoint A [-65.00 2655.00 -49.00]-[-31.00 2665.00 -15.00] B [-65.00 2651.00 -49.00]-[-31.00 2661.00 -15.00] target 't2' name ''
+
+EvoBot interactor 13: door model *13 kind 0 activation 3 state 1 movement 1 health 10000.0 wait 5.00 travel 3.24
+bounds [751.00 2431.00 -113.00]-[769.00 2529.00 1.00] current [751.00 2431.00 -113.00]-[769.00 2529.00 1.00]
+endpoint A [751.00 2431.00 -113.00]-[769.00 2529.00 1.00] B [735.00 2527.00 -113.00]-[753.00 2625.00 1.00] target '' name ''
+
+EvoBot interactor 14: door model *14 kind 0 activation 3 state 1 movement 1 health 10000.0 wait 5.00 travel 2.60
+bounds [511.00 2239.00 -145.00]-[577.00 2257.00 -47.00] current [511.00 2239.00 -145.00]-[577.00 2257.00 -47.00]
+endpoint A [511.00 2239.00 -145.00]-[577.00 2257.00 -47.00] B [447.00 2255.00 -145.00]-[513.00 2273.00 -47.00] target '' name ''
+
+EvoBot interactor 15: door model *15 kind 0 activation 4 state 1 movement 1 health 0.0 wait 3.00 travel 0.66
+bounds [511.00 1919.00 -267.00]-[577.00 2177.00 -191.00] current [511.00 1919.00 -267.00]-[577.00 2177.00 -191.00]
+endpoint A [511.00 1919.00 -267.00]-[577.00 2177.00 -191.00] B [511.00 1919.00 -201.00]-[577.00 2177.00 -125.00] target '' name 't4'
+
+EvoBot interactor 16: trigger_multiple model  kind 7 activation 3 state 4 movement 0 health 1.0 wait 0.20 travel 0.00
+bounds [447.00 1999.00 -105.00]-[457.00 2033.00 -71.00] current [447.00 1999.00 -105.00]-[457.00 2033.00 -71.00]
+endpoint A [447.00 1999.00 -105.00]-[457.00 2033.00 -71.00] B [447.00 1999.00 -105.00]-[457.00 2033.00 -71.00] target 't4' name ''
+
+EvoBot interactor 21: door model *21 kind 0 activation 3 state 1 movement 1 health 10000.0 wait 5.00 travel 2.60
+bounds [1103.00 991.00 -273.00]-[1121.00 1057.00 -159.00] current [1103.00 991.00 -273.00]-[1121.00 1057.00 -159.00]
+endpoint A [1103.00 991.00 -273.00]-[1121.00 1057.00 -159.00] B [1087.00 1055.00 -273.00]-[1105.00 1121.00 -159.00] target '' name ''
+
+EvoBot interactor 22: plat model *22 kind 2 activation 2 state 2 movement 1 health 0.0 wait 0.00 travel 2.67
+bounds [751.00 479.00 -337.00]-[833.00 545.00 -319.00] current [751.00 479.00 -337.00]-[833.00 545.00 -319.00]
+endpoint A [751.00 479.00 63.00]-[833.00 545.00 81.00] B [751.00 479.00 -337.00]-[833.00 545.00 -319.00] target '' name ''
+
+EvoBot interactor 23: door model *23 kind 0 activation 4 state 1 movement 1 health 0.0 wait 5.00 travel 2.60
+bounds [735.00 479.00 79.00]-[753.00 545.00 193.00] current [735.00 479.00 79.00]-[753.00 545.00 193.00]
+endpoint A [735.00 479.00 79.00]-[753.00 545.00 193.00] B [719.00 543.00 79.00]-[737.00 609.00 193.00] target '' name 't8'
+
+EvoBot interactor 24: trigger_multiple model  kind 7 activation 2 state 1 movement 0 health 0.0 wait 0.20 travel 0.00
+bounds [751.00 479.00 -1.00]-[833.00 545.00 17.00] current [751.00 479.00 -1.00]-[833.00 545.00 17.00]
+endpoint A [751.00 479.00 -1.00]-[833.00 545.00 17.00] B [751.00 479.00 -1.00]-[833.00 545.00 17.00] target 't8' name ''
+
+EvoBot interactor 26: func_button model *25 kind 1 activation 2 state 2 movement 1 health 0.0 wait -1.00 travel 0.10
+bounds [1287.00 2031.00 -209.00]-[1297.00 2065.00 -175.00] current [1291.00 2031.00 -209.00]-[1301.00 2065.00 -175.00]
+endpoint A [1287.00 2031.00 -209.00]-[1297.00 2065.00 -175.00] B [1291.00 2031.00 -209.00]-[1301.00 2065.00 -175.00] target 't9' name ''
+
+EvoBot interactor 27: func_button model *26 kind 1 activation 2 state 2 movement 1 health 0.0 wait -1.00 travel 0.10
+bounds [1215.00 2503.00 -273.00]-[1249.00 2513.00 -239.00] current [1215.00 2507.00 -273.00]-[1249.00 2517.00 -239.00]
+endpoint A [1215.00 2503.00 -273.00]-[1249.00 2513.00 -239.00] B [1215.00 2507.00 -273.00]-[1249.00 2517.00 -239.00] target 't9' name ''
+
+EvoBot interactor 28: func_button model *27 kind 1 activation 2 state 2 movement 1 health 0.0 wait -1.00 travel 0.10
+bounds [783.00 1983.00 -145.00]-[817.00 1993.00 -111.00] current [783.00 1979.00 -145.00]-[817.00 1989.00 -111.00]
+endpoint A [783.00 1983.00 -145.00]-[817.00 1993.00 -111.00] B [783.00 1979.00 -145.00]-[817.00 1989.00 -111.00] target 't9' name ''
+
+EvoBot interactor 39: door model *38 kind 0 activation 4 state 2 movement 1 health 0.0 wait -1.00 travel 0.40
+bounds [1087.00 959.00 -273.00]-[1105.00 1089.00 -159.00] current [1087.00 839.00 -273.00]-[1105.00 969.00 -159.00]
+endpoint A [1087.00 959.00 -273.00]-[1105.00 1089.00 -159.00] B [1087.00 839.00 -273.00]-[1105.00 969.00 -159.00] target '' name 't15'
+
+EvoBot interactor 40: trigger_once model  kind 7 activation 2 state 4 movement 0 health 0.0 wait -1.00 travel 0.00
+bounds [1247.00 1119.00 -265.00]-[1385.00 1137.00 -151.00] current [1247.00 1119.00 -265.00]-[1385.00 1137.00 -151.00]
+endpoint A [1247.00 1119.00 -265.00]-[1385.00 1137.00 -151.00] B [1247.00 1119.00 -265.00]-[1385.00 1137.00 -151.00] target 't15' name ''
+
+EvoBot interactor 44: door model *43 kind 0 activation 3 state 1 movement 1 health 10000.0 wait 5.00 travel 2.60
+bounds [655.00 47.00 47.00]-[721.00 65.00 113.00] current [655.00 47.00 47.00]-[721.00 65.00 113.00]
+endpoint A [655.00 47.00 47.00]-[721.00 65.00 113.00] B [719.00 31.00 47.00]-[785.00 49.00 113.00] target '' name ''
+
+EvoBot interactor 49: trigger_once model  kind 7 activation 2 state 1 movement 0 health 0.0 wait -1.00 travel 0.00
+bounds [671.00 63.00 55.00]-[705.00 321.00 105.00] current [671.00 63.00 55.00]-[705.00 321.00 105.00]
+endpoint A [671.00 63.00 55.00]-[705.00 321.00 105.00] B [671.00 63.00 55.00]-[705.00 321.00 105.00] target 't31' name ''
