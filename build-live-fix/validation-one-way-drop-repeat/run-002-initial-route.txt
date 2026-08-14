@@ -1,0 +1,138 @@
+EvoBot route to exit
+EvoBot route status
+source area: 1464
+destination area: 1121
+result: blocked
+cost: 6.092 s
+reachabilities: 38
+reachable routing areas: 63 / 792
+graph reachabilities: 7914
+dijkstra time: 0.000065 seconds
+cost/predecessor memory: 11744 bytes
+ignoring dynamic blockers: destination reachable (730 reachable areas)
+exit interactor: 47
+exit areas: 1
+blocked by interactor 23 at reachability 7894
+blocked by interactor 39 at reachability 2122
+blocked by interactor 21 at reachability 2120
+blocked by interactor 21 at reachability 2112
+sample costs from the same field:
+  area 1149 (interactor 23): 1.435 s
+  area 1250 (interactor 44): 0.705 s
+  area 1332 (interactor 2): 1.069 s
+
+EvoBot route dump: 38 steps, area 1464 -> 1121
+step 1 reach 3163 type WALK area 1464 -> 1462 start [424.00 -241.00 72.00]-[536.00 -241.00 72.00] dest [424.00 -239.00 72.00]-[536.00 -239.00 72.00] height 0.00 distance 8.00 flags 0 blocker -1 mover 0
+step 2 reach 3158 type WALK area 1462 -> 1461 start [424.00 -177.00 72.00]-[536.00 -177.00 72.00] dest [424.00 -175.00 72.00]-[536.00 -175.00 72.00] height -2.00 distance 8.25 flags 2 blocker -1 mover 0
+step 3 reach 3125 type WALK area 1461 -> 1456 start [480.00 -120.00 54.16]-[480.00 -120.00 54.16] dest [480.00 -96.00 48.03]-[480.00 -96.00 48.03] height -6.13 distance 24.77 flags 1026 blocker -1 mover 0
+step 4 reach 3148 type WALK area 1456 -> 1454 start [476.06 -72.00 42.16]-[476.06 -72.00 42.16] dest [476.06 -48.00 36.03]-[476.06 -48.00 36.03] height -6.13 distance 24.77 flags 1026 blocker -1 mover 0
+step 5 reach 3145 type WALK area 1454 -> 1450 start [480.00 -40.00 34.16]-[480.00 -40.00 34.16] dest [480.00 -16.00 28.03]-[480.00 -16.00 28.03] height -6.13 distance 24.77 flags 1026 blocker -1 mover 0
+step 6 reach 3116 type WALK area 1450 -> 1433 start [432.00 15.00 24.00]-[528.00 15.00 24.00] dest [432.00 17.00 24.00]-[528.00 17.00 24.00] height 0.00 distance 8.00 flags 0 blocker -1 mover 0
+step 7 reach 3090 type WALK area 1433 -> 1425 start [400.00 143.00 24.00]-[560.00 143.00 24.00] dest [400.00 145.00 24.00]-[560.00 145.00 24.00] height 0.00 distance 8.00 flags 0 blocker -1 mover 0
+step 8 reach 3071 type WALK area 1425 -> 1419 start [400.00 319.00 24.00]-[560.00 319.00 24.00] dest [400.00 321.00 24.00]-[560.00 321.00 24.00] height 0.00 distance 8.00 flags 0 blocker -1 mover 0
+step 9 reach 2893 type WALK area 1419 -> 1325 start [560.00 447.00 40.00]-[560.00 447.00 40.00] dest [560.00 449.00 40.00]-[560.00 449.00 40.00] height 0.00 distance 8.00 flags 0 blocker -1 mover 0
+step 10 reach 6726 type JUMP area 1325 -> 1331 start [591.97 575.84 40.16]-[591.97 575.84 40.16] dest [385.49 630.07 72.03]-[385.49 630.07 72.03] height 31.88 distance 215.85 flags 129 blocker -1 mover 0
+step 11 reach 2870 type WALK area 1331 -> 1316 start [399.00 688.00 88.00]-[399.00 688.00 88.00] dest [401.00 688.00 88.00]-[401.00 688.00 88.00] height 0.00 distance 8.00 flags 0 blocker -1 mover 0
+step 12 reach 2864 type WALK area 1316 -> 1315 start [447.00 752.00 88.00]-[447.00 688.00 88.00] dest [449.00 752.00 88.00]-[449.00 688.00 88.00] height 0.00 distance 8.00 flags 0 blocker -1 mover 0
+step 13 reach 2859 type WALK area 1315 -> 1314 start [495.00 752.00 104.00]-[495.00 688.00 104.00] dest [497.00 752.00 104.00]-[497.00 688.00 104.00] height 3.99 distance 8.94 flags 1 blocker -1 mover 0
+step 14 reach 2853 type WALK area 1314 -> 1312 start [511.00 752.00 104.00]-[511.00 688.00 104.00] dest [513.00 752.00 104.00]-[513.00 688.00 104.00] height 0.00 distance 8.00 flags 0 blocker -1 mover 0
+step 15 reach 2432 type WALK area 1312 -> 1148 start [591.00 752.00 104.00]-[591.00 720.00 104.00] dest [593.00 752.00 104.00]-[593.00 720.00 104.00] height 0.00 distance 8.00 flags 0 blocker -1 mover 0
+step 16 reach 2429 type WALK area 1148 -> 1149 start [656.00 721.00 104.00]-[720.00 721.00 104.00] dest [656.00 719.00 104.00]-[720.00 719.00 104.00] height 0.00 distance 8.00 flags 0 blocker -1 mover 0
+step 17 reach 7894 type PLATFORM area 1149 -> 1236 start [719.50 520.50 104.16]-[719.50 520.50 104.16] dest [821.42 512.00 -295.97]-[821.42 512.00 -295.97] height -400.12 distance 412.99 flags 40 blocker 23 mover 22
+step 18 reach 2709 type SWIM area 1236 -> 1225 start [880.00 527.00 -312.00]-[976.00 527.00 -312.00] dest [880.00 529.00 -312.00]-[976.00 529.00 -312.00] height 0.00 distance 8.00 flags 0 blocker -1 mover 0
+step 19 reach 7047 type WATER_ENTRY area 1225 -> 1203 start [899.20 544.00 -311.84]-[899.20 544.00 -311.84] dest [925.62 853.65 -295.97]-[925.62 853.65 -295.97] height 15.88 distance 311.18 flags 1025 blocker -1 mover 0
+step 20 reach 2503 type WALK area 1203 -> 1169 start [864.00 863.00 -296.00]-[896.00 863.00 -296.00] dest [864.00 865.00 -296.00]-[896.00 865.00 -296.00] height 0.00 distance 8.00 flags 0 blocker -1 mover 0
+step 21 reach 2491 type WALK area 1169 -> 1168 start [776.00 984.00 -280.00]-[816.00 944.00 -280.00] dest [776.00 984.00 -280.00]-[816.00 944.00 -280.00] height 15.88 distance 17.78 flags 1 blocker -1 mover 0
+step 22 reach 2489 type WALK area 1168 -> 1166 start [784.00 983.00 -280.00]-[808.00 983.00 -280.00] dest [784.00 985.00 -280.00]-[808.00 985.00 -280.00] height 0.00 distance 8.00 flags 0 blocker -1 mover 0
+step 23 reach 2486 type WALK area 1166 -> 1167 start [804.00 984.00 -273.00]-[804.00 984.00 -273.00] dest [804.00 984.00 -273.00]-[804.00 984.00 -273.00] height -16.00 distance 17.89 flags 2 blocker -1 mover 0
+step 24 reach 2472 type WALK area 1167 -> 1160 start [816.00 976.00 -264.00]-[816.00 976.00 -264.00] dest [816.00 976.00 -264.00]-[816.00 976.00 -264.00] height 0.00 distance 8.00 flags 0 blocker -1 mover 0
+step 25 reach 2458 type WALK area 1160 -> 1159 start [816.00 1008.00 -248.00]-[848.00 976.00 -248.00] dest [816.00 1008.00 -248.00]-[848.00 976.00 -248.00] height 15.88 distance 17.78 flags 1 blocker -1 mover 0
+step 26 reach 2450 type WALK area 1159 -> 1155 start [1039.00 1056.00 -248.00]-[1039.00 992.00 -248.00] dest [1041.00 1056.00 -248.00]-[1041.00 992.00 -248.00] height 0.00 distance 8.00 flags 0 blocker -1 mover 0
+step 27 reach 2444 type WALK area 1155 -> 1154 start [1055.00 1056.00 -248.00]-[1055.00 992.00 -248.00] dest [1057.00 1056.00 -248.00]-[1057.00 992.00 -248.00] height 0.00 distance 8.00 flags 0 blocker -1 mover 0
+step 28 reach 2122 type WALK area 1154 -> 1016 start [1084.00 1024.00 -247.84]-[1084.00 1024.00 -247.84] dest [1092.00 1024.00 -247.84]-[1092.00 1024.00 -247.84] height 0.00 distance 8.00 flags 8 blocker 39 mover 0
+step 29 reach 2120 type WALK area 1016 -> 1015 start [1116.00 1024.00 -247.84]-[1116.00 1024.00 -247.84] dest [1124.00 1024.00 -247.84]-[1124.00 1024.00 -247.84] height 0.00 distance 8.00 flags 8 blocker 21 mover 0
+step 30 reach 2112 type WALK area 1015 -> 1011 start [1132.00 1024.00 -247.84]-[1132.00 1024.00 -247.84] dest [1140.00 1024.00 -255.84]-[1140.00 1024.00 -255.84] height -8.00 distance 11.31 flags 10 blocker 21 mover 0
+step 31 reach 2104 type WALK area 1011 -> 1009 start [1247.00 1104.00 -256.00]-[1247.00 992.00 -256.00] dest [1249.00 1104.00 -256.00]-[1249.00 992.00 -256.00] height 0.00 distance 8.00 flags 0 blocker -1 mover 0
+step 32 reach 2107 type WALK area 1009 -> 1043 start [1248.00 977.00 -256.00]-[1288.00 977.00 -256.00] dest [1248.00 975.00 -256.00]-[1288.00 975.00 -256.00] height 0.00 distance 8.00 flags 0 blocker -1 mover 0
+step 33 reach 2202 type WALK area 1043 -> 1086 start [1248.00 769.00 -256.00]-[1392.00 769.00 -256.00] dest [1248.00 767.00 -256.00]-[1392.00 767.00 -256.00] height 0.00 distance 8.00 flags 0 blocker -1 mover 0
+step 34 reach 2327 type WALK area 1086 -> 1087 start [1296.00 753.00 -256.00]-[1392.00 753.00 -256.00] dest [1296.00 751.00 -256.00]-[1392.00 751.00 -256.00] height 0.00 distance 8.00 flags 0 blocker -1 mover 0
+step 35 reach 2337 type WALK area 1087 -> 1104 start [1280.00 737.00 -256.00]-[1344.00 737.00 -256.00] dest [1280.00 735.00 -256.00]-[1344.00 735.00 -256.00] height 0.00 distance 8.00 flags 0 blocker -1 mover 0
+step 36 reach 2361 type WALK area 1104 -> 1116 start [1248.00 657.00 -256.00]-[1376.00 657.00 -256.00] dest [1248.00 655.00 -256.00]-[1376.00 655.00 -256.00] height 0.00 distance 8.00 flags 0 blocker -1 mover 0
+step 37 reach 2392 type WALK area 1116 -> 1118 start [1248.00 641.00 -256.00]-[1360.00 641.00 -256.00] dest [1248.00 639.00 -256.00]-[1360.00 639.00 -256.00] height 0.00 distance 8.00 flags 0 blocker -1 mover 0
+step 38 reach 2400 type WALK area 1118 -> 1121 start [1248.00 593.00 -240.00]-[1360.00 593.00 -240.00] dest [1248.00 591.00 -240.00]-[1360.00 591.00 -240.00] height 16.00 distance 17.89 flags 1 blocker -1 mover 0
+
+EvoBot interactor 3: door model *3 kind 0 activation 4 state 1 movement 1 health 0.0 wait 5.00 travel 2.32
+bounds [-65.00 511.00 -241.00]-[65.00 641.00 1.00] current [-65.00 511.00 -241.00]-[65.00 641.00 1.00]
+endpoint A [-65.00 511.00 -241.00]-[65.00 641.00 1.00] B [-65.00 511.00 -473.00]-[65.00 641.00 -231.00] target '' name 't1'
+
+EvoBot interactor 4: func_button model *4 kind 1 activation 2 state 1 movement 1 health 0.0 wait 1.00 travel 0.10
+bounds [-69.00 559.00 31.00]-[-59.00 593.00 65.00] current [-69.00 559.00 31.00]-[-59.00 593.00 65.00]
+endpoint A [-69.00 559.00 31.00]-[-59.00 593.00 65.00] B [-73.00 559.00 31.00]-[-63.00 593.00 65.00] target 't1' name ''
+
+EvoBot interactor 8: door model *8 kind 0 activation 4 state 1 movement 1 health 0.0 wait -1.00 travel 0.40
+bounds [-1.00 2391.00 -97.00]-[321.00 2641.00 -79.00] current [-1.00 2391.00 -97.00]-[321.00 2641.00 -79.00]
+endpoint A [-1.00 2391.00 -97.00]-[321.00 2641.00 -79.00] B [-1.00 2631.00 -97.00]-[321.00 2881.00 -79.00] target '' name 't2'
+
+EvoBot interactor 9: func_button model *9 kind 1 activation 2 state 1 movement 1 health 0.0 wait -1.00 travel 0.08
+bounds [-65.00 2655.00 -49.00]-[-31.00 2665.00 -15.00] current [-65.00 2655.00 -49.00]-[-31.00 2665.00 -15.00]
+endpoint A [-65.00 2655.00 -49.00]-[-31.00 2665.00 -15.00] B [-65.00 2651.00 -49.00]-[-31.00 2661.00 -15.00] target 't2' name ''
+
+EvoBot interactor 13: door model *13 kind 0 activation 3 state 1 movement 1 health 10000.0 wait 5.00 travel 3.24
+bounds [751.00 2431.00 -113.00]-[769.00 2529.00 1.00] current [751.00 2431.00 -113.00]-[769.00 2529.00 1.00]
+endpoint A [751.00 2431.00 -113.00]-[769.00 2529.00 1.00] B [735.00 2527.00 -113.00]-[753.00 2625.00 1.00] target '' name ''
+
+EvoBot interactor 14: door model *14 kind 0 activation 3 state 1 movement 1 health 10000.0 wait 5.00 travel 2.60
+bounds [511.00 2239.00 -145.00]-[577.00 2257.00 -47.00] current [511.00 2239.00 -145.00]-[577.00 2257.00 -47.00]
+endpoint A [511.00 2239.00 -145.00]-[577.00 2257.00 -47.00] B [447.00 2255.00 -145.00]-[513.00 2273.00 -47.00] target '' name ''
+
+EvoBot interactor 15: door model *15 kind 0 activation 4 state 1 movement 1 health 0.0 wait 3.00 travel 0.66
+bounds [511.00 1919.00 -267.00]-[577.00 2177.00 -191.00] current [511.00 1919.00 -267.00]-[577.00 2177.00 -191.00]
+endpoint A [511.00 1919.00 -267.00]-[577.00 2177.00 -191.00] B [511.00 1919.00 -201.00]-[577.00 2177.00 -125.00] target '' name 't4'
+
+EvoBot interactor 16: trigger_multiple model  kind 7 activation 3 state 4 movement 0 health 1.0 wait 0.20 travel 0.00
+bounds [447.00 1999.00 -105.00]-[457.00 2033.00 -71.00] current [447.00 1999.00 -105.00]-[457.00 2033.00 -71.00]
+endpoint A [447.00 1999.00 -105.00]-[457.00 2033.00 -71.00] B [447.00 1999.00 -105.00]-[457.00 2033.00 -71.00] target 't4' name ''
+
+EvoBot interactor 21: door model *21 kind 0 activation 3 state 1 movement 1 health 10000.0 wait 5.00 travel 2.60
+bounds [1103.00 991.00 -273.00]-[1121.00 1057.00 -159.00] current [1103.00 991.00 -273.00]-[1121.00 1057.00 -159.00]
+endpoint A [1103.00 991.00 -273.00]-[1121.00 1057.00 -159.00] B [1087.00 1055.00 -273.00]-[1105.00 1121.00 -159.00] target '' name ''
+
+EvoBot interactor 22: plat model *22 kind 2 activation 2 state 2 movement 1 health 0.0 wait 0.00 travel 2.67
+bounds [751.00 479.00 -337.00]-[833.00 545.00 -319.00] current [751.00 479.00 -337.00]-[833.00 545.00 -319.00]
+endpoint A [751.00 479.00 63.00]-[833.00 545.00 81.00] B [751.00 479.00 -337.00]-[833.00 545.00 -319.00] target '' name ''
+
+EvoBot interactor 23: door model *23 kind 0 activation 4 state 1 movement 1 health 0.0 wait 5.00 travel 2.60
+bounds [735.00 479.00 79.00]-[753.00 545.00 193.00] current [735.00 479.00 79.00]-[753.00 545.00 193.00]
+endpoint A [735.00 479.00 79.00]-[753.00 545.00 193.00] B [719.00 543.00 79.00]-[737.00 609.00 193.00] target '' name 't8'
+
+EvoBot interactor 24: trigger_multiple model  kind 7 activation 2 state 1 movement 0 health 0.0 wait 0.20 travel 0.00
+bounds [751.00 479.00 -1.00]-[833.00 545.00 17.00] current [751.00 479.00 -1.00]-[833.00 545.00 17.00]
+endpoint A [751.00 479.00 -1.00]-[833.00 545.00 17.00] B [751.00 479.00 -1.00]-[833.00 545.00 17.00] target 't8' name ''
+
+EvoBot interactor 26: func_button model *25 kind 1 activation 2 state 1 movement 1 health 0.0 wait -1.00 travel 0.10
+bounds [1287.00 2031.00 -209.00]-[1297.00 2065.00 -175.00] current [1287.00 2031.00 -209.00]-[1297.00 2065.00 -175.00]
+endpoint A [1287.00 2031.00 -209.00]-[1297.00 2065.00 -175.00] B [1291.00 2031.00 -209.00]-[1301.00 2065.00 -175.00] target 't9' name ''
+
+EvoBot interactor 27: func_button model *26 kind 1 activation 2 state 1 movement 1 health 0.0 wait -1.00 travel 0.10
+bounds [1215.00 2503.00 -273.00]-[1249.00 2513.00 -239.00] current [1215.00 2503.00 -273.00]-[1249.00 2513.00 -239.00]
+endpoint A [1215.00 2503.00 -273.00]-[1249.00 2513.00 -239.00] B [1215.00 2507.00 -273.00]-[1249.00 2517.00 -239.00] target 't9' name ''
+
+EvoBot interactor 28: func_button model *27 kind 1 activation 2 state 1 movement 1 health 0.0 wait -1.00 travel 0.10
+bounds [783.00 1983.00 -145.00]-[817.00 1993.00 -111.00] current [783.00 1983.00 -145.00]-[817.00 1993.00 -111.00]
+endpoint A [783.00 1983.00 -145.00]-[817.00 1993.00 -111.00] B [783.00 1979.00 -145.00]-[817.00 1989.00 -111.00] target 't9' name ''
+
+EvoBot interactor 39: door model *38 kind 0 activation 4 state 1 movement 1 health 0.0 wait -1.00 travel 0.40
+bounds [1087.00 959.00 -273.00]-[1105.00 1089.00 -159.00] current [1087.00 959.00 -273.00]-[1105.00 1089.00 -159.00]
+endpoint A [1087.00 959.00 -273.00]-[1105.00 1089.00 -159.00] B [1087.00 839.00 -273.00]-[1105.00 969.00 -159.00] target '' name 't15'
+
+EvoBot interactor 40: trigger_once model  kind 7 activation 2 state 1 movement 0 health 0.0 wait -1.00 travel 0.00
+bounds [1247.00 1119.00 -265.00]-[1385.00 1137.00 -151.00] current [1247.00 1119.00 -265.00]-[1385.00 1137.00 -151.00]
+endpoint A [1247.00 1119.00 -265.00]-[1385.00 1137.00 -151.00] B [1247.00 1119.00 -265.00]-[1385.00 1137.00 -151.00] target 't15' name ''
+
+EvoBot interactor 44: door model *43 kind 0 activation 3 state 1 movement 1 health 10000.0 wait 5.00 travel 2.60
+bounds [655.00 47.00 47.00]-[721.00 65.00 113.00] current [655.00 47.00 47.00]-[721.00 65.00 113.00]
+endpoint A [655.00 47.00 47.00]-[721.00 65.00 113.00] B [719.00 31.00 47.00]-[785.00 49.00 113.00] target '' name ''
+
+EvoBot interactor 49: trigger_once model  kind 7 activation 2 state 1 movement 0 health 0.0 wait -1.00 travel 0.00
+bounds [671.00 63.00 55.00]-[705.00 321.00 105.00] current [671.00 63.00 55.00]-[705.00 321.00 105.00]
+endpoint A [671.00 63.00 55.00]-[705.00 321.00 105.00] B [671.00 63.00 55.00]-[705.00 321.00 105.00] target 't31' name ''
